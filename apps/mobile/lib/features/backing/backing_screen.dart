@@ -295,10 +295,16 @@ class _DatosCard extends StatelessWidget {
 
 /// Copia de `apps/backend/app/health_metrics/interventions.py` (DYNAMICS):
 /// deriva natural por año y ruido anual (SD) de cada biomarcador PhenoAge,
-/// en las unidades del backend. Mantener sincronizado a mano.
+/// en las unidades del backend.
+///
+/// Es una copia a propósito, no una llamada de red: esta pantalla es la que le
+/// explica al jurado de dónde sale cada número y tiene que abrir aunque no
+/// haya backend (o con `USE_MOCK_ENGINE`). Para que la copia no se
+/// desincronice en silencio —ya pasó— `apps/backend/tests/test_app_coeficientes.py`
+/// lee ESTE archivo y falla si algún valor deja de coincidir con el motor.
 const _dinamicaBackend = <String, ({double deriva, double ruido})>{
   'hs_CRP': (deriva: 0.03, ruido: 0.6),
-  'glucosa': (deriva: 0.5, ruido: 4.0),
+  'glucosa': (deriva: 0.29, ruido: 4.0),
   'albumina': (deriva: -0.01, ruido: 0.08),
   'creatinina': (deriva: 0.005, ruido: 0.04),
   'fosfatasa_alcalina': (deriva: 0.3, ruido: 4.0),
@@ -311,18 +317,12 @@ const _dinamicaBackend = <String, ({double deriva, double ruido})>{
 /// Copia de `interventions.py` (SCENARIOS → efectos_anuales): cuánto suma cada
 /// escenario a la deriva natural, por biomarcador y por año.
 const _efectosBackend = <String, Map<String, double>>{
+  'sueno_8h': {'hs_CRP': -0.05, 'glucosa': -0.2},
   'ejercicio_aerobico': {'hs_CRP': -0.08, 'glucosa': -0.9, 'leucocitos': -0.03},
   'dieta_mediterranea': {'hs_CRP': -0.06, 'glucosa': -0.6, 'albumina': 0.01},
-  'cesacion_tabaco': {'leucocitos': -0.15, 'hs_CRP': -0.10, 'vcm': -0.15},
-  'combinada': {'hs_CRP': -0.20, 'glucosa': -1.4, 'leucocitos': -0.16, 'albumina': 0.01, 'vcm': -0.10},
-};
-
-IconData _iconoEscenario(String id) => switch (id) {
-  'ejercicio_aerobico' => Icons.directions_walk_rounded,
-  'dieta_mediterranea' => Icons.restaurant_rounded,
-  'cesacion_tabaco' => Icons.smoke_free_rounded,
-  'combinada' => Icons.auto_awesome_rounded,
-  _ => Icons.spa_rounded,
+  'reducir_estres': {'hs_CRP': -0.04},
+  'cesacion_tabaco': {'leucocitos': -0.11, 'hs_CRP': -0.10, 'vcm': -0.15},
+  'combinada': {'hs_CRP': -0.20, 'glucosa': -1.4, 'leucocitos': -0.12, 'albumina': 0.01, 'vcm': -0.10},
 };
 
 class _PalancasCard extends StatelessWidget {
@@ -387,7 +387,10 @@ class _PalancasCard extends StatelessWidget {
               child: ExpansionTile(
                 tilePadding: EdgeInsets.zero,
                 childrenPadding: const EdgeInsets.only(left: 54, bottom: Sp.x3),
-                leading: MoIconTile(_iconoEscenario(e.key), size: 40),
+                // `iconoIntervencion` (mo.dart) ya conoce los ids del motor,
+                // incluidos sueno_8h y reducir_estres. El switch propio que
+                // vivía acá no los tenía y los mandaba a spa_rounded.
+                leading: MoIconTile(iconoIntervencion(e.key), size: 40),
                 title: Text(e.value.etiqueta, style: t.titleMedium),
                 subtitle: Text(
                   '${_efectosBackend[e.key]?.length ?? 0} biomarcadores · ${_esfuerzo(e.value.esfuerzo)}',
