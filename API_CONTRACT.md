@@ -28,7 +28,7 @@
 | --- | --- |
 | `POST /me/health-context/phenoage` | Edad biológica hoy, `valores_usados`, `campos_inferidos` (→ "inferido" en la UI). |
 | `POST /me/health-context/montecarlo` | `{escenarios, n_trayectorias: 5000, anios: 10}`. La app pide `ninguna`, `ejercicio_aerobico`, `dieta_mediterranea` y, solo si `tabaco == true`, `cesacion_tabaco` + `combinada`. |
-| `POST /me/health-context/chat` | Pantalla "Pregúntame" (historial stateless que se devuelve tal cual). |
+| `POST /me/health-context/chat` | Pantalla "Pregúntame" (`/chat`; también desde el detalle de una palanca y desde "Por qué" en Futuro vía `Routes.chatCon`). `ChatRepository.enviar` manda `message`, `history` (stateless, se devuelve tal cual), `resultado` = `SimulacionResultado.toChatJson()` (spec §8 sin `muestra_trayectorias`, curvas a 1 decimal) y `enfoque` (`escenario:<i>` · `porque` · `incertidumbre` · `biomarcador:<nombre>` · `medir` · `poblacion`). El backend recupera solo los fragmentos relevantes (RAG léxico, `app/chat_rag/`) y devuelve `reply`, `history` y `fuentes`; la app pinta las fuentes como "Leí: …" bajo cada respuesta. |
 
 Cómo se arma el resultado de la spec §8 (`SimulationRepository._simularRemoto`): `edad_biologica_hoy` = phenoage; `trayectoria_baseline` = interpolación de hoy al año 10 (mediana lineal, banda ∝ √t) con los P10/mediana/P90 del escenario `ninguna`; cada escenario → `anios_ganados` = mediana base − mediana escenario, `rango` ≈ ±1,28·sd (sd de la banda, pareado ×0,5), `pct_futuros_que_mejoran` ≈ Φ(delta/sd), `esfuerzo` de una tabla local (3/3/4/10), `ratio` = ganados/esfuerzo; `shap_top_drivers` y `comparacion_poblacional` son aproximaciones locales sobre `valores_usados`; `muestra_trayectorias` son líneas ilustrativas coherentes con la banda.
 
@@ -39,7 +39,7 @@ Cómo se arma el resultado de la spec §8 (`SimulationRepository._simularRemoto`
 3. **Catálogo de escenarios según hábitos** (p. ej. sueño, alcohol, estrés de la spec §5) y **esfuerzo** por escenario: la app usa 4 escenarios fijos + tabla local de esfuerzo.
 4. **Wearables** (`/wearables/sincronizar`): la app lee Health Connect/HealthKit y recalcula `sueno_h`/`actividad` en local; luego los sube con `PATCH /me/health-context.habitos`.
 5. **Campos del onboarding sin sitio en `health-context`**: nacionalidad/país, alcohol (frecuencia), patrones de alimentación, suplementos, proveedor de wearable, foto y prueba genética (PDF). Viven en `SharedPreferences` (clave por `user_id`). Propuesta: aceptarlos en `demografia`/`habitos` (`extra="forbid"` hoy los rechaza) y endpoints `POST /me/foto`, `POST /me/genetica` (storage).
-6. **Historial de simulaciones** y **"mi plan"** (escenario + adherencia): local. Propuesta: `GET /me/simulaciones`, `POST /me/simulaciones/{id}/plan`.
+6. **Historial de simulaciones** y **"mi plan"** (escenario + adherencia): local. Propuesta: `GET /me/simulaciones`, `POST /me/simulaciones/{id}/plan`. Mientras tanto, el chat recibe el resultado compacto en cada turno (`resultado`); si el backend guardara la última simulación, la app dejaría de mandarlo.
 7. **Caso demo precargado** (spec §11 paso 9): vive en `DemoData` + motor mock (`--dart-define=USE_MOCK_ENGINE=true`). Propuesta: `GET /demo/perfil` o una cuenta demo sembrada.
 
 ## Catálogos que la app manda (y el backend acepta como texto libre)

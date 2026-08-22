@@ -380,6 +380,17 @@ class _WhySection extends StatelessWidget {
               ),
               const SizedBox(height: Sp.x3),
               Text('Contribuciones aproximadas: qué mueve más tu edad biológica hoy.', style: t.bodySmall),
+              if (drivers.isNotEmpty)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    // El chat llega enfocado en el porqué (sesga la recuperación del backend).
+                    onPressed: () => context.push(Routes.chatCon(enfoque: 'porque')),
+                    iconAlignment: IconAlignment.end,
+                    icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+                    label: const Text('Pregúntame por qué'),
+                  ),
+                ),
             ],
           ),
         ),

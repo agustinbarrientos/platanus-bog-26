@@ -36,6 +36,17 @@ abstract final class Routes {
   static const backing = '/respaldo';
   static const profile = '/perfil';
   static const chat = '/chat';
+
+  /// Chat abierto "sobre algo": `enfoque` sesga la recuperación del backend
+  /// (`escenario:<i>`, `porque`, `incertidumbre`, `biomarcador:<nombre>`,
+  /// `medir`, `poblacion`) y `pregunta` se envía sola al entrar.
+  static String chatCon({String? enfoque, String? pregunta}) => Uri(
+    path: chat,
+    queryParameters: {
+      if (enfoque != null && enfoque.isNotEmpty) 'enfoque': enfoque,
+      if (pregunta != null && pregunta.isNotEmpty) 'q': pregunta,
+    },
+  ).toString();
 }
 
 class _RouterRefresh extends ChangeNotifier {
@@ -77,7 +88,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         routes: [GoRoute(path: 'confirmar', builder: (_, _) => const ExamsConfirmScreen())],
       ),
       GoRoute(path: Routes.simulating, builder: (_, _) => const SimulatingScreen()),
-      GoRoute(path: Routes.chat, builder: (_, _) => const ChatScreen()),
+      GoRoute(
+        path: Routes.chat,
+        builder: (_, s) => ChatScreen(enfoque: s.uri.queryParameters['enfoque'], preguntaInicial: s.uri.queryParameters['q']),
+      ),
       StatefulShellRoute.indexedStack(
         builder: (_, _, shell) => AppShell(shell: shell),
         branches: [

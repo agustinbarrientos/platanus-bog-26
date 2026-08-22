@@ -264,8 +264,36 @@ def _query(consulta: str, contexto_previo: Sequence[str], enfoque: str | None) -
     for i, prev in enumerate(reversed(list(contexto_previo)[-2:])):
         q.update(terminos(prev, 0.4 if i == 0 else 0.2))
     if enfoque:
-        q.update(terminos(enfoque.replace(":", " ").replace("_", " "), 1.5))
+        # Low weight: the explicit id boost in `retrieve()` does the real
+        # work; the words only help generic enfoques ("porque", "medir").
+        q.update(terminos(enfoque.replace(":", " ").replace("_", " "), 0.5))
     return q
+
+
+#: `enfoque` values the app sends → the chunk ids they point at, best first.
+#: Anything else is matched as a substring of the chunk id.
+_ENFOQUE_IDS: dict[str, tuple[str, ...]] = {
+    "porque": ("sim:porque",),
+    "incertidumbre": ("sim:incertidumbre", "kb:banda"),
+    "banda": ("kb:banda", "sim:incertidumbre"),
+    "medir": ("kb:que_medir", "faltantes"),
+    "poblacion": ("sim:poblacion", "kb:poblacion"),
+    "resumen": ("sim:resumen",),
+    "phenoage": ("phenoage", "kb:phenoage"),
+    "habitos": ("habitos", "kb:habitos"),
+}
+
+
+def _ids_enfocados(enfoque: str | None) -> tuple[str, ...]:
+    e = normalize(enfoque or "").strip()
+    if not e:
+        return ()
+    if e.startswith("escenario:"):
+        return (f"sim:{e}",)
+    if e.startswith("biomarcador:"):
+        nombre = e.split(":", 1)[1]
+        return (f"bio:{nombre}", f"kb:biomarcador:{nombre}")
+    return _ENFOQUE_IDS.get(e, (e,))
 
 
 def _subgrupo(chunk: Chunk) -> str:
@@ -322,15 +350,21 @@ def retrieve(
     idx = _Index(chunks)
     q = _query(consulta, contexto_previo, enfoque)
     base = idx.scores(q)
-    enf = normalize(enfoque).strip() if enfoque else ""
-    bonus = max(5.0, max(base) if base else 0.0)
+    enfocados = _ids_enfocados(enfoque)
+    # The focused chunk must come first whatever the question says: the user
+    # opened the chat *from* it. Its companions (the generic explanation of
+    # the same topic) get a smaller boost so they follow when there is room.
+    bonus = 2 * max((s * c.prioridad for c, s in zip(chunks, base, strict=True)), default=0.0) + 5.0
     puntuados: list[tuple[float, Chunk]] = []
     for c, s in zip(chunks, base, strict=True):
         if c.id in excluidos:
             continue
         score = s * c.prioridad
-        if enf and enf in normalize(c.id):
-            score += bonus
+        cid = normalize(c.id)
+        for rank, objetivo in enumerate(enfocados):
+            if cid == objetivo or (objetivo not in _ENFOQUE_IDS.values() and objetivo in cid and len(enfocados) == 1):
+                score += bonus if rank == 0 else bonus * 0.6
+                break
         if score > 0:
             puntuados.append((score, c))
     if not puntuados:

@@ -8,9 +8,10 @@ import 'package:go_router/go_router.dart';
 import '../../app/providers.dart';
 import '../../app/router.dart';
 import '../../app/theme/tokens.dart';
-import '../../core/format.dart';
 import '../../data/api/api_client.dart';
+import '../../data/models/biomarcador.dart';
 import '../../data/models/chat.dart';
+import '../../data/models/simulacion.dart';
 import '../../data/repositories/chat_repository.dart';
 import '../../widgets/mascot.dart';
 import '../../widgets/mo.dart';
@@ -25,10 +26,11 @@ class ChatHistoryNotifier extends Notifier<List<ChatMessage>> {
   /// Historial confirmado por el backend (sin turnos en vuelo).
   List<ChatMessage> get confirmado => state.where((m) => !m.pendiente).toList(growable: false);
 
-  /// Agrega el turno del usuario de forma optimista, llama al agente y
-  /// reemplaza la lista con el `history` que devuelve. Si falla, deja la
-  /// conversación como estaba y relanza para que la pantalla lo cuente.
-  Future<ChatRespuesta> enviar(String texto) async {
+  /// Agrega el turno del usuario de forma optimista, llama al agente (con el
+  /// último resultado compacto y el `enfoque`, si lo hay) y reemplaza la
+  /// lista con el `history` que devuelve. Si falla, deja la conversación como
+  /// estaba y relanza para que la pantalla lo cuente.
+  Future<ChatRespuesta> enviar(String texto, {String? enfoque}) async {
     final base = confirmado;
     state = [
       ...base,
@@ -36,10 +38,16 @@ class ChatHistoryNotifier extends Notifier<List<ChatMessage>> {
       const ChatMessage(role: 'assistant', content: '', pendiente: true),
     ];
     try {
-      final r = await ref.read(chatRepositoryProvider).enviar(texto, base);
-      state = r.history.isNotEmpty
+      final r = await ref.read(chatRepositoryProvider).enviar(
+        texto,
+        base,
+        resultado: ref.read(ultimoResultadoProvider),
+        enfoque: enfoque,
+      );
+      final nuevo = r.history.isNotEmpty
           ? r.history
           : [...base, ChatMessage(role: 'user', content: texto), ChatMessage(role: 'assistant', content: r.reply)];
+      state = _conFuentes(nuevo, base, r.fuentes);
       return r;
     } catch (_) {
       state = base;
@@ -47,15 +55,35 @@ class ChatHistoryNotifier extends Notifier<List<ChatMessage>> {
     }
   }
 
+  /// El backend devuelve el historial plano (`role` + `content`): conservo
+  /// las fuentes que ya tenían los turnos anteriores y le pego las de esta
+  /// respuesta al último mensaje del agente.
+  static List<ChatMessage> _conFuentes(List<ChatMessage> nuevo, List<ChatMessage> previo, List<ChatFuente> fuentes) {
+    return [
+      for (var i = 0; i < nuevo.length; i++)
+        if (i < previo.length && previo[i].role == nuevo[i].role && previo[i].content == nuevo[i].content && previo[i].fuentes.isNotEmpty)
+          nuevo[i].copyWith(fuentes: previo[i].fuentes)
+        else if (i == nuevo.length - 1 && !nuevo[i].esUsuario)
+          nuevo[i].copyWith(fuentes: fuentes)
+        else
+          nuevo[i],
+    ];
+  }
+
   void reiniciar() => state = const [];
 }
 
 final chatHistoryProvider = NotifierProvider<ChatHistoryNotifier, List<ChatMessage>>(ChatHistoryNotifier.new);
 
-/// "Pregúntale a Moirai": chat con la mascota, que responde solo con los
-/// datos que el usuario ya me contó (agente del backend).
+/// "Pregúntale a Moirai": chat con la mascota, que responde con los datos
+/// que el usuario ya me contó y con lo que vi en su última simulación
+/// (agente del backend con recuperación por fragmentos). Se puede abrir
+/// "sobre algo" ([enfoque], p. ej. `escenario:0` desde el detalle de una
+/// palanca) y con una [preguntaInicial] que se envía sola al entrar.
 class ChatScreen extends ConsumerStatefulWidget {
-  const ChatScreen({super.key});
+  const ChatScreen({super.key, this.enfoque, this.preguntaInicial});
+  final String? enfoque;
+  final String? preguntaInicial;
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -71,6 +99,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   String? _ultimoTexto;
   MascotMood _mood = MascotMood.idle;
   Timer? _moodTimer;
+
+  /// Sobre qué se abrió el chat (va en cada turno hasta que el usuario lo quite).
+  String? _enfoque;
+
+  @override
+  void initState() {
+    super.initState();
+    _enfoque = widget.enfoque;
+    final q = widget.preguntaInicial?.trim();
+    if (q != null && q.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _enviar(q));
+    }
+  }
 
   @override
   void dispose() {
@@ -112,7 +153,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _setMood(MascotMood.working);
     _irAlFinal();
     try {
-      await ref.read(chatHistoryProvider.notifier).enviar(t);
+      await ref.read(chatHistoryProvider.notifier).enviar(t, enfoque: _enfoque);
       _setMood(MascotMood.happy, volverA: const Duration(milliseconds: 1800));
     } on ApiException catch (e) {
       _setMood(MascotMood.gentle, volverA: const Duration(milliseconds: 2400));
@@ -166,7 +207,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 children: [
                   Text('Pregúntame', style: t.titleLarge),
                   Text(
-                    'Solo sé lo que me has contado de ti.',
+                    resultado == null ? 'Solo sé lo que me has contado de ti.' : 'Respondo con tus datos y tu última simulación.',
                     style: t.bodySmall!.copyWith(color: MoiraiColors.ink2),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -212,14 +253,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       },
                     ),
             ),
-            if (vacio && resultado != null)
-              _PistasDeContexto(
-                preguntas: [
-                  '¿Por qué mi edad biológica es ${Fmt.decimal(resultado.edadBiologicaHoy)}?',
-                  '¿Qué pasa si ${resultado.mejorDecision.etiqueta.toLowerCase()}?',
-                  '¿Qué tan ancho es mi rango y por qué?',
-                ],
-                onTap: _enviar,
+            if (vacio && resultado != null) _PistasDeContexto(preguntas: ChatRepository.sugerenciasCon(resultado), onTap: _enviar),
+            if (_enfoque != null)
+              _ChipEnfoque(
+                etiqueta: _etiquetaEnfoque(_enfoque!, resultado),
+                onQuitar: () => setState(() => _enfoque = null),
               ),
             if (_aviso != null)
               Padding(
@@ -274,7 +312,7 @@ class _EstadoVacio extends StatelessWidget {
         ).stagger(2),
         const SizedBox(height: Sp.x3),
         Text(
-          'Respondo con lo que tengo guardado de ti: tu perfil, tus exámenes y tu edad biológica si ya la calculé.',
+          'Respondo con lo que tengo guardado de ti —perfil, exámenes, edad biológica— y con lo que vi en tu última simulación: tus palancas, tu rango, el porqué. Debajo de cada respuesta te digo qué leí.',
           textAlign: TextAlign.center,
           style: t.bodyMedium!.copyWith(color: MoiraiColors.ink2),
         ).stagger(3),
@@ -386,7 +424,17 @@ class _Burbuja extends StatelessWidget {
               ? const _PuntosEscribiendo()
               : esUsuario
                   ? Text(mensaje.content, style: t.bodyLarge!.copyWith(color: Colors.white, height: 1.4))
-                  : _TextoConNegritas(mensaje.content, style: t.bodyLarge!.copyWith(color: MoiraiColors.ink, height: 1.45)),
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _TextoConNegritas(mensaje.content, style: t.bodyLarge!.copyWith(color: MoiraiColors.ink, height: 1.45)),
+                        if (mensaje.fuentes.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          _FuentesLinea(fuentes: mensaje.fuentes),
+                        ],
+                      ],
+                    ),
         ),
       ),
     );
@@ -412,6 +460,112 @@ class _Burbuja extends StatelessWidget {
         .fadeIn(duration: Motion.slow, curve: Motion.out)
         .slideY(begin: .12, end: 0, duration: Motion.slow, curve: Motion.out)
         .slideX(begin: esUsuario ? .04 : -.04, end: 0, duration: Motion.slow, curve: Motion.out);
+  }
+}
+
+/// "Esto es lo que leí": los fragmentos en los que se apoyó la respuesta,
+/// como una línea discreta bajo el texto. Tus datos y tu simulación primero;
+/// lo de "cómo funciona el motor" al final.
+class _FuentesLinea extends StatelessWidget {
+  const _FuentesLinea({required this.fuentes});
+  final List<ChatFuente> fuentes;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    final orden = [...fuentes.where((f) => f.esDeMisDatos || f.esDelResultado), ...fuentes.where((f) => !f.esDeMisDatos && !f.esDelResultado)];
+    final titulos = <String>[];
+    for (final f in orden) {
+      if (!titulos.contains(f.titulo)) titulos.add(f.titulo);
+    }
+    final visibles = titulos.take(3).toList();
+    final extra = titulos.length - visibles.length;
+    final texto = 'Leí: ${visibles.join(' · ')}${extra > 0 ? ' · +$extra más' : ''}';
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 1),
+          child: Icon(Icons.menu_book_outlined, size: 13, color: MoiraiColors.ink3),
+        ),
+        const SizedBox(width: 5),
+        Flexible(child: Text(texto, style: t.labelSmall!.copyWith(color: MoiraiColors.ink3, letterSpacing: 0, height: 1.3))),
+      ],
+    );
+  }
+}
+
+/// Sobre qué se abrió el chat (p. ej. una palanca). Se puede quitar.
+class _ChipEnfoque extends StatelessWidget {
+  const _ChipEnfoque({required this.etiqueta, required this.onQuitar});
+  final String etiqueta;
+  final VoidCallback onQuitar;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Sp.gutter, Sp.x2, Sp.gutter, Sp.x2),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Material(
+          color: MoiraiColors.blueSoft,
+          shape: const StadiumBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.center_focus_strong_rounded, size: 15, color: MoiraiColors.blueInk),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    'Hablando de: $etiqueta',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: t.labelMedium!.copyWith(color: MoiraiColors.blueInk, fontWeight: FontWeight.w700),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Quitar',
+                  onPressed: onQuitar,
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  iconSize: 16,
+                  icon: const Icon(Icons.close_rounded, color: MoiraiColors.blueInk),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ).animate().fadeIn(duration: Motion.base);
+  }
+}
+
+/// Etiqueta legible de un `enfoque` (misma gramática que usa el backend).
+String _etiquetaEnfoque(String enfoque, SimulacionResultado? r) {
+  final partes = enfoque.split(':');
+  switch (partes.first) {
+    case 'escenario':
+      final i = partes.length > 1 ? int.tryParse(partes[1]) : null;
+      if (r != null && i != null && i >= 0 && i < r.escenarios.length) return r.escenarios[i].etiqueta;
+      return 'esta palanca';
+    case 'biomarcador':
+      return partes.length > 1 ? (BiomarcadorDef.byId(partes[1])?.nombre ?? partes[1]) : 'este dato';
+    case 'porque':
+      return 'el porqué';
+    case 'incertidumbre':
+    case 'banda':
+      return 'tu rango';
+    case 'medir':
+      return 'qué medir';
+    case 'poblacion':
+      return 'tu percentil';
+    default:
+      return enfoque.replaceAll('_', ' ');
   }
 }
 

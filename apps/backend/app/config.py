@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     #: /me/health-context/chat and /me/health-context/biomarkers/extract;
     #: every other endpoint boots and runs without it.
     anthropic_api_key: str = ""
+    #: Model behind POST /me/health-context/chat. Haiku by explicit choice:
+    #: the answers are grounded Q&A over retrieved fragments, not open-ended
+    #: reasoning, and this project optimizes cost over accuracy. Swap via the
+    #: CHAT_MODEL env var (e.g. claude-sonnet-5) without a code change.
+    chat_model: str = "claude-haiku-4-5"
 
     # ---- lab-exam upload ----
     #: Read into memory before base64-encoding for the Anthropic request, so

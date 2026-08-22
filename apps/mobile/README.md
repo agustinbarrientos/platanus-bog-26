@@ -30,7 +30,7 @@ flutter run --dart-define=USE_MOCK_ENGINE=true                                 #
 | Hábitos, historia familiar, objetivos, ancestría | Real (`PATCH /me/health-context`, sync best-effort tras cada cambio) + copia local |
 | Biomarcadores | Real (`PATCH /me/health-context.biomarcadores`, `POST …/biomarkers/extract` con Claude) + copia local |
 | Edad biológica y Monte Carlo | Real (`/phenoage` + `/montecarlo`); la curva por año, las trayectorias finas, el "por qué" (SHAP) y el percentil poblacional se aproximan en el dispositivo |
-| Chat "Pregúntame" | Real (`/chat`, claude-haiku-4-5) |
+| Chat "Pregúntame" | Real (`/chat`, RAG en el backend: la app manda el resultado compacto + `enfoque` y muestra las `fuentes` usadas bajo cada respuesta; en modo mock responde con plantillas locales sobre el resultado) |
 | Wearables | Lectura real de Health Connect / HealthKit; resumen de hábitos en local → sube a `habitos` |
 | Nacionalidad, alcohol, suplementos, foto, prueba genética, historial de simulaciones, "mi plan" | Local (`SharedPreferences`) hasta que el backend los acepte |
 
