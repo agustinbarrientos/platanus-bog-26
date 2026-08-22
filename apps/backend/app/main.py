@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.anthropic_client import dispose_anthropic_client
 from app.config import Settings, get_settings
 from app.db import dispose_engine
-from app.routers import auth, biological_age, health, health_chat, health_context, profile
+from app.routers import auth, biological_age, health, health_chat, health_context, lab_upload, profile
 
 log = logging.getLogger("app")
 
@@ -67,6 +67,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health_context.router)
     app.include_router(biological_age.router)
     app.include_router(health_chat.router)
+    app.include_router(lab_upload.router)
 
     @app.get("/", tags=["meta"], summary="Service banner")
     async def root() -> dict[str, str]:

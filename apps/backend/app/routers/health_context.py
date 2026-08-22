@@ -147,9 +147,11 @@ def _merge_patch(existing: dict | None, patch: dict) -> dict:
     return {**(existing or {}), **patch}
 
 
-async def _get_or_create(session: AsyncSession, user_id) -> HealthContext:
+async def get_or_create_health_context(session: AsyncSession, user_id) -> HealthContext:
     """The row does not exist until the first PATCH; this is the same
-    lazy-create-on-read safety net `profiles` uses.
+    lazy-create-on-read safety net `profiles` uses. Public because
+    `lab_upload.py` needs the same fetch-or-create before it merges in
+    extracted biomarkers.
     """
     await session.execute(
         insert(HealthContext)
@@ -163,7 +165,7 @@ async def _get_or_create(session: AsyncSession, user_id) -> HealthContext:
 
 @router.get("", summary="The signed-in user's health context")
 async def read_health_context(user: CurrentUserDep, session: SessionDep) -> HealthContextOut:
-    row = await _get_or_create(session, user.id)
+    row = await get_or_create_health_context(session, user.id)
     return HealthContextOut.model_validate(row)
 
 
@@ -171,7 +173,7 @@ async def read_health_context(user: CurrentUserDep, session: SessionDep) -> Heal
 async def update_health_context(
     patch: HealthContextPatch, user: CurrentUserDep, session: SessionDep
 ) -> HealthContextOut:
-    row = await _get_or_create(session, user.id)
+    row = await get_or_create_health_context(session, user.id)
     # exclude_unset is what separates "not collected" from "collected as
     # null" — mode="json" so nested models land as plain dicts/lists for the
     # JSONB columns rather than Pydantic model instances.

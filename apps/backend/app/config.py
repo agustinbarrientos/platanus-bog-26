@@ -42,8 +42,16 @@ class Settings(BaseSettings):
 
     # ---- health-context chat agent ----
     #: console.anthropic.com → API Keys. Only needed for POST
-    #: /me/health-context/chat; every other endpoint boots and runs without it.
+    #: /me/health-context/chat and /me/health-context/biomarkers/extract;
+    #: every other endpoint boots and runs without it.
     anthropic_api_key: str = ""
+
+    # ---- lab-exam upload ----
+    #: Read into memory before base64-encoding for the Anthropic request, so
+    #: this is a real ceiling on this process's memory use per upload, not
+    #: just a courtesy limit — the first endpoint in this API that accepts
+    #: raw file bytes.
+    max_upload_mb: int = 10
 
     # ---- database ----
     #: Supabase → Project Settings → Database → Connection string → Transaction

@@ -256,6 +256,70 @@ from an age/sex reference median when you call `/phenoage` or `/montecarlo`
 — see below. `fuente` is free text (e.g. `"documento"` / `"reportado"` /
 `"calculado"`), not validated against a fixed set.
 
+### `POST /me/health-context/biomarkers/extract` → `200`
+
+**Not JSON** — the one exception to the "every body is JSON" convention
+above. Upload a lab-exam document as `multipart/form-data`, field name `file`:
+```
+Content-Type: multipart/form-data; boundary=...
+
+--...
+Content-Disposition: form-data; name="file"; filename="examen.pdf"
+Content-Type: application/pdf
+
+<file bytes>
+--...--
+```
+Accepted `Content-Type`: `application/pdf`, `image/png`, `image/jpeg`,
+`image/webp`. Max size: `MAX_UPLOAD_MB` (default 10MB) — `413` if exceeded,
+`422` if the content type isn't one of the four above.
+
+Claude reads the document, extracts any of the 12 biomarkers above it
+recognizes, and **this endpoint writes them straight into
+`health_context.biomarcadores` itself** — no separate `PATCH` call needed.
+Unlike a normal `PATCH` (which replaces the whole array), this **merges by
+`nombre`**: an extracted reading overwrites the existing entry with the same
+name; every other previously-stored biomarker (including ones you entered by
+hand) is left untouched.
+
+```json
+{
+  "guardados": [
+    {"nombre": "glucosa", "valor": 92.0, "unidad": "mg/dL", "fuente": "documento"}
+  ],
+  "biomarcadores": [
+    {"nombre": "glucosa", "valor": 92.0, "unidad": "mg/dL", "fuente": "documento"},
+    {"nombre": "imc", "valor": 31.2, "unidad": "kg/m2", "fuente": "calculado"}
+  ],
+  "advertencias": [
+    {
+      "nombre": "hs_CRP",
+      "valor_reportado": 21.0,
+      "unidad_reportada": "mg/L",
+      "razon": "hs_CRP=21.0 fuera de rango plausible [0.01, 200.0] mg/L"
+    }
+  ],
+  "notas": null
+}
+```
+- `guardados` — extracted, validated, and just written this call.
+- `biomarcadores` — the **full** list now in storage, after the merge (same
+  shape as `GET /me/health-context`'s field of the same name).
+- `advertencias` — readings Claude found on the document that failed the same
+  unit/range validation `Biomarcador` always enforces (unrecognized unit with
+  no known conversion, or implausible value even after conversion) — **not
+  saved**. A document that's readable but has zero recognizable biomarkers
+  is a normal `200` with empty `guardados`/`advertencias`, not an error.
+- Units are converted deterministically in Python (a small fixed table: e.g.
+  glucose/cholesterol in mmol/L, creatinine in umol/L, CRP in mg/dL) — Claude
+  reports the value exactly as printed and never does the unit math itself.
+- Uses `claude-haiku-4-5`, same cost-over-accuracy choice as `/chat`. Because
+  this writes directly to storage with no review step, the validator above is
+  the only thing standing between a misread value and a saved one — keep
+  that in mind if biomarker names/ranges/units in the table above ever change.
+- Same additional error cases as `/chat`: `502` (agent unreachable/errored),
+  `429` (rate-limited), `503` (`ANTHROPIC_API_KEY` unset).
+
 ---
 
 ## Biological age compute (`/me/health-context/phenoage`, `/montecarlo`)
