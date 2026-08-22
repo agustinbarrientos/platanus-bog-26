@@ -354,7 +354,7 @@ NHANES-style age/sex medians).
 ```json
 // request — every field optional
 {
-  "escenarios": ["ninguna", "ejercicio_aerobico"],  // omit for all 5
+  "escenarios": ["ninguna", "ejercicio_aerobico"],  // omit for all 7
   "n_trayectorias": 5000,   // 100–20000, default 5000
   "anios": 10               // 1–30, default 10
 }
@@ -362,7 +362,11 @@ NHANES-style age/sex medians).
 Runs `n_trayectorias` independent 1-year-step simulations per scenario over
 `anios` years, evolving each biomarker with a natural-aging drift + the
 scenario's effect + biological noise, then computes PhenoAge at the horizon
-for every trajectory. `422` if an `escenarios` key isn't one of:
+for every trajectory. Omitting `escenarios` runs **all 7**, returned in the
+order listed below (the declaration order of `SCENARIOS` in
+`app/health_metrics/interventions.py`) — a caller that omits the field gets
+`ninguna` first, so the baseline is always `escenarios[0]`. `422` if an
+`escenarios` key isn't one of:
 
 | key | label |
 |---|---|
@@ -370,7 +374,15 @@ for every trajectory. `422` if an `escenarios` key isn't one of:
 | `ejercicio_aerobico` | Ejercicio aeróbico regular |
 | `dieta_mediterranea` | Dieta mediterránea |
 | `cesacion_tabaco` | Cesación de tabaco |
+| `sueno_8h` | Dormir 8 horas |
+| `reducir_estres` | Reducir el estrés |
 | `combinada` | Ejercicio + dieta mediterránea + cesación de tabaco |
+
+`sueno_8h` and `reducir_estres` are the two levers of `MOIRAI_ENGINE_SPEC.md`
+§5 that the engine was missing; their effect sizes are deliberately smaller
+than exercise or diet because the trial evidence behind them is weaker. They
+were added without renaming or removing any existing key, so a caller that
+passes an explicit `escenarios` list keeps behaving exactly as before.
 
 ```json
 {
@@ -394,10 +406,15 @@ trajectories for that scenario at the horizon — not a confidence interval,
 the actual spread the noise model produces. Compare scenarios by their
 medians; the p10–p90 band is what a UI should render as the "fan of futures."
 
-> Both intervention effect sizes and the NHANES imputation medians are
-> directional placeholders (see `app/health_metrics/interventions.py` and
-> `nhanes_reference.py`), not literature-fitted — fine for a demo, not a
-> stated clinical claim.
+> Intervention effect sizes are **approximate and derived from epidemiological
+> literature** — each one is annotated in `app/health_metrics/interventions.py`
+> with the trial or meta-analysis its order of magnitude comes from, and
+> `tests/test_evolution.py` checks that the 10-year cumulative effect stays
+> inside the published range. Approximate and citable, not exact, and not
+> fitted to any cohort of ours. The per-year aging drift is anchored to the
+> age gradient of this engine's own reference-median table, and those medians
+> (`nhanes_reference.py`) are still hand-set NHANES-shaped values, not NHANES
+> microdata. Estimate, not a clinical claim.
 
 ---
 
