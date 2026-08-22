@@ -1,7 +1,8 @@
 """Settings, read once from the environment.
 
 Render injects PORT and whatever you set in the dashboard. Everything here has
-a working default so the app boots locally with no .env at all.
+a working default, so the app boots locally with no .env at all and the only
+thing you genuinely have to set anywhere is DATABASE_URL.
 """
 
 from __future__ import annotations
@@ -24,18 +25,20 @@ class Settings(BaseSettings):
     environment: Literal["development", "production"] = "development"
     log_level: str = "INFO"
 
-    #: Comma-separated list. Set this in Render to your frontend's URL once you
-    #: have one; "*" is fine while nothing is authenticated with cookies.
+    #: Comma-separated origins allowed to call the API. Only browsers enforce
+    #: this, so it does nothing at all for the Flutter app; it matters the day
+    #: something runs in a browser. "*" is safe here because no credentials
+    #: ride along automatically — the token is a header the client sets itself.
     cors_origins: str = "*"
 
-    # ---- supabase auth ----
-    #: e.g. https://<project-ref>.supabase.co — used to locate the JWKS endpoint
-    #: that verifies user tokens. No API key is needed: the backend reaches
-    #: Postgres directly and only ever verifies already-signed JWTs.
-    supabase_url: str = ""
-    supabase_jwt_audience: str = "authenticated"
-    #: How long a fetched signing key is trusted before it is re-fetched.
-    jwks_cache_seconds: int = 3600
+    # ---- auth ----
+    #: How long an issued token stays valid. Long, because the app keeps it in
+    #: the keychain and there is no refresh flow to paper over an expiry.
+    #: Signing out revokes immediately regardless.
+    token_days: int = 90
+    #: Minimum accepted at signup. Length is the only rule worth enforcing;
+    #: composition rules push people towards "Password1!" and nothing else.
+    min_password_length: int = 8
 
     # ---- database ----
     #: Supabase → Project Settings → Database → Connection string → Transaction
@@ -47,12 +50,8 @@ class Settings(BaseSettings):
     db_echo: bool = False
 
     @property
-    def jwks_url(self) -> str:
-        return f"{self.supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json"
-
-    @property
-    def jwt_issuer(self) -> str:
-        return f"{self.supabase_url.rstrip('/')}/auth/v1"
+    def is_production(self) -> bool:
+        return self.environment == "production"
 
     @property
     def cors_origin_list(self) -> list[str]:

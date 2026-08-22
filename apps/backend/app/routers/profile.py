@@ -147,7 +147,7 @@ class MeOut(BaseModel):
         }
     )
 
-    email: str | None
+    email: str
     profile: ProfileOut
     answered: list[str]
     remaining: list[str]
@@ -162,7 +162,8 @@ def _progress(profile: Profile) -> tuple[list[str], list[str]]:
 
 
 async def _get_or_create(session: AsyncSession, user_id: uuid.UUID) -> Profile:
-    """First sight of a user creates their row.
+    """The row is created at signup; this is the safety net for accounts that
+    predate that, and for anything that creates a user by another route.
 
     Done as an upsert rather than select-then-insert so two parallel requests
     from a freshly loaded page cannot race into a duplicate-key error.
@@ -175,7 +176,7 @@ async def _get_or_create(session: AsyncSession, user_id: uuid.UUID) -> Profile:
     return profile
 
 
-def _me(user_email: str | None, profile: Profile) -> MeOut:
+def _me(user_email: str, profile: Profile) -> MeOut:
     answered, remaining = _progress(profile)
     return MeOut(
         email=user_email,

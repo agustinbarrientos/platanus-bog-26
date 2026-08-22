@@ -5,9 +5,18 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import CheckConstraint, Date, DateTime, Numeric, String, func
+from sqlalchemy import (
+    CheckConstraint,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Numeric,
+    String,
+    func,
+)
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
 
@@ -18,8 +27,67 @@ SEX_AT_BIRTH = ("female", "male", "intersex")
 BLOOD_TYPES = ("A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-")
 
 
+class User(Base):
+    """An account. This service owns it — Supabase is only the Postgres host.
+
+    Email is stored already lower-cased and the unique index is on the plain
+    column, so two accounts cannot differ by capitalisation alone. Normalising
+    on the way in beats a functional index here, because every lookup then uses
+    the same ordinary index without the caller having to remember `lower()`.
+    """
+
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email: Mapped[str] = mapped_column(String(320), nullable=False, unique=True)
+    #: argon2id. Never logged, never serialised — it is absent from every
+    #: response model on purpose.
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AuthToken(Base):
+    """One signed-in device. Revoking a row signs that device out.
+
+    The token itself is never stored, only its SHA-256, so this table is
+    useless to anyone who manages to read it — including us. That is also why
+    the value is shown to the client exactly once, at login: there is no way to
+    look it up again afterwards, only to issue a new one.
+    """
+
+    __tablename__ = "auth_tokens"
+    __table_args__ = (Index("auth_tokens_user_id_idx", "user_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    #: Only so a user could recognise their own devices in a future "signed in
+    #: on these devices" screen. Never used for any decision.
+    device: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
+    user: Mapped[User] = relationship(lazy="raise")
+
+    def is_usable(self, now: datetime) -> bool:
+        return self.revoked_at is None and self.expires_at > now
+
+
 class Profile(Base):
-    """One row per authenticated user, created on first sight.
+    """One row per user, created alongside the account.
 
     Every field except the id is nullable. The intake form is answered one
     question at a time and a user who abandons it must be able to resume, so a
@@ -50,10 +118,11 @@ class Profile(Base):
         ),
     )
 
-    #: Matches auth.users.id. The foreign key is declared in schema.sql rather
-    #: than here, because SQLAlchemy's create_all does not know about Supabase's
-    #: auth schema and would try to create it.
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    #: Deleting the account deletes the health data with it. That is the
+    #: behaviour you want automatic rather than remembered.
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
 
     full_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     #: Stored as a date, not an age. Age silently rots — a twin built today is
@@ -77,9 +146,7 @@ class Item(Base):
 
     __tablename__ = "items"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str | None] = mapped_column(String(2000), nullable=True)
     created_at: Mapped[datetime] = mapped_column(

@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import Settings, get_settings
 from app.db import dispose_engine
-from app.routers import health, items, profile
+from app.routers import auth, health, items, profile
 
 log = logging.getLogger("app")
 
@@ -37,22 +37,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title=settings.app_name,
-        version="0.1.0",
+        version="0.2.0",
         lifespan=lifespan,
         docs_url="/docs",
         openapi_url="/openapi.json",
     )
 
+    # Only browsers enforce CORS, so none of this affects the Flutter app.
+    # allow_credentials stays off: the token is a header the client sets
+    # itself, never something the browser attaches on its own.
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
-        # Starlette rejects credentials + "*" at runtime; keep them consistent.
-        allow_credentials="*" not in settings.cors_origin_list,
+        allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
     app.include_router(health.router)
+    app.include_router(auth.router)
     app.include_router(items.router)
     app.include_router(profile.router)
 
