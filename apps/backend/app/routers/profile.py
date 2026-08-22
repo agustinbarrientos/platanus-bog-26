@@ -106,7 +106,6 @@ class ProfileOut(BaseModel):
         from_attributes=True,
         json_schema_extra={
             "example": {
-                "user_id": "991d025c-8aae-4732-b350-e19535cd8f0b",
                 "full_name": "Ana Rueda",
                 "date_of_birth": "1991-11-02",
                 "height_cm": 163.0,
@@ -118,7 +117,6 @@ class ProfileOut(BaseModel):
         },
     )
 
-    user_id: uuid.UUID
     full_name: str | None
     date_of_birth: date | None
     height_cm: float | None
@@ -140,7 +138,6 @@ class MeOut(BaseModel):
             "example": {
                 "email": "ana@moirai.test",
                 "profile": {
-                    "user_id": "991d025c-8aae-4732-b350-e19535cd8f0b",
                     "full_name": "Ana Rueda",
                     "date_of_birth": "1991-11-02",
                     "height_cm": 163.0,
