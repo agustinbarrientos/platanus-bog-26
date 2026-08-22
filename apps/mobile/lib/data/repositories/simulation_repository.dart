@@ -12,11 +12,14 @@ import '../models/simulacion.dart';
 
 /// Simulación contra el backend real:
 /// `POST /me/health-context/phenoage` (edad biológica hoy) +
-/// `POST /me/health-context/montecarlo` (P10/mediana/P90 por escenario al
-/// horizonte). El backend no devuelve curvas por año ni trayectorias, así que
-/// la app interpola la curva (banda ∝ √t) y sintetiza trayectorias
-/// ilustrativas coherentes con la banda — marcado como tal en la UI.
-/// Con `USE_MOCK_ENGINE` corre el motor mock en el dispositivo.
+/// `POST /me/health-context/montecarlo` (P10/mediana/P90 por escenario, al
+/// horizonte y **año por año** en el objeto `curva`).
+///
+/// La curva del abanico viene del motor. Lo que sigue siendo local: las
+/// trayectorias individuales que dibuja la pantalla (el backend no expone
+/// trayectorias, solo percentiles) y el SHAP aproximado — ambas marcadas como
+/// ilustrativas en la UI. Con `USE_MOCK_ENGINE` corre el motor mock en el
+/// dispositivo.
 class SimulationRepository {
   SimulationRepository(this._api, this._prefs);
   final ApiClient _api;
@@ -25,10 +28,14 @@ class SimulationRepository {
   static const horizonte = 10;
   static const nTrayectorias = 5000;
 
-  /// Escenarios del backend (`SCENARIOS` en interventions.py).
+  /// Escenarios del backend (`SCENARIOS` en interventions.py). El orden manda
+  /// el del catálogo; el de las palancas en pantalla lo decide el ratio
+  /// impacto/esfuerzo, no este mapa.
   static const escenariosBackend = <String, ({String etiqueta, int esfuerzo, String icono, String descripcion, List<String> partes})>{
+    'sueno_8h': (etiqueta: 'Dormir 8 horas', esfuerzo: 2, icono: 'bedtime', descripcion: 'Acostarte a una hora fija y llegar a 8 horas casi todas las noches.', partes: ['sueno_8h']),
     'ejercicio_aerobico': (etiqueta: 'Ejercicio aeróbico regular', esfuerzo: 3, icono: 'directions_walk', descripcion: '150 minutos a la semana de algo que te suba el pulso: caminar rápido, bici, nadar.', partes: ['ejercicio_aerobico']),
     'dieta_mediterranea': (etiqueta: 'Dieta mediterránea', esfuerzo: 3, icono: 'restaurant', descripcion: 'Más verduras, legumbres, pescado y aceite de oliva; menos ultraprocesados. Un patrón, no una dieta.', partes: ['dieta_mediterranea']),
+    'reducir_estres': (etiqueta: 'Bajar el estrés', esfuerzo: 2, icono: 'self_improvement', descripcion: 'Un hábito diario que lo baje de verdad: pausas, respiración, terapia.', partes: ['reducir_estres']),
     'cesacion_tabaco': (etiqueta: 'Dejar el tabaco', esfuerzo: 4, icono: 'smoke_free', descripcion: 'Cero cigarrillos. Es la palanca que más mueve la inflamación y los leucocitos.', partes: ['cesacion_tabaco']),
     'combinada': (etiqueta: 'Ejercicio + dieta mediterránea + dejar el tabaco', esfuerzo: 10, icono: 'auto_awesome', descripcion: 'Las tres a la vez.', partes: ['ejercicio_aerobico', 'dieta_mediterranea', 'cesacion_tabaco']),
   };
@@ -41,7 +48,23 @@ class SimulationRepository {
   Stream<SimulacionProgreso> _simularRemoto(SimulacionInput input) async* {
     final edad0 = input.edad.toDouble();
     final fuma = input.habitos['tabaco'] == true;
-    final pedir = ['ninguna', 'ejercicio_aerobico', 'dieta_mediterranea', if (fuma) 'cesacion_tabaco', if (fuma) 'combinada'];
+    // Solo se piden las palancas que esta persona puede accionar. El motor
+    // aplica un efecto fijo por escenario, así que ofrecer "dormir 8 horas" a
+    // quien ya duerme 8 le prometería años que no tiene cómo ganar.
+    final duermePoco = ((input.habitos['sueno_h'] as num?)?.toDouble() ?? 7) < 8;
+    // `startsWith('baj')` a propósito: el modelo del onboarding guarda
+    // baja/media/alta (Catalogos.nivelBMA) pero API_CONTRACT.md documenta
+    // bajo/medio/alto, así que la palanca no depende de cuál gane.
+    final estresado = !'${input.habitos['estres'] ?? 'media'}'.startsWith('baj');
+    final pedir = [
+      'ninguna',
+      if (duermePoco) 'sueno_8h',
+      'ejercicio_aerobico',
+      'dieta_mediterranea',
+      if (estresado) 'reducir_estres',
+      if (fuma) 'cesacion_tabaco',
+      if (fuma) 'combinada',
+    ];
 
     // 1) PhenoAge hoy.
     final ph = ((await _api.post('/me/health-context/phenoage', timeout: const Duration(seconds: 120))) as Map).cast<String, dynamic>();
@@ -90,7 +113,7 @@ class SimulationRepository {
     Map<String, dynamic>? find(String k) => escs.where((e) => '${e['escenario']}' == k).firstOrNull;
     final base = find('ninguna');
     if (base == null) throw ApiException(500, 'El servidor no devolvió la línea base.');
-    final baseline = _curva(hoy, base);
+    final baseline = _curvaDe(hoy, base);
     final baseSd = _sd(base);
 
     final escenarios = <Escenario>[];
@@ -98,7 +121,7 @@ class SimulationRepository {
       final k = '${e['escenario']}';
       if (k == 'ninguna') continue;
       final meta = escenariosBackend[k];
-      final curva = _curva(hoy, e);
+      final curva = _curvaDe(hoy, e);
       final delta = _m(base) - _m(e);
       final sdGain = math.sqrt(baseSd * baseSd + _sd(e) * _sd(e)) * 0.5; // pareadas → menos varianza
       final pct = (_phi(delta / math.max(sdGain, 0.05)) * 100).round().clamp(0, 100);
@@ -169,8 +192,23 @@ class SimulationRepository {
   static double _sd(Map<String, dynamic> e) => (((e['edad_biologica_p90'] as num) - (e['edad_biologica_p10'] as num)) / 2.56).toDouble();
   static double _phi(double z) => 0.5 * (1 + MockEngine.erf(z / math.sqrt2));
 
-  /// Curva de hoy al horizonte: mediana lineal, banda ∝ √t.
-  static Curva _curva(double hoy, Map<String, dynamic> e) {
+  /// La curva año por año tal como la calculó el motor (Capa 3): el objeto
+  /// `curva` que `/montecarlo` trae dentro de cada escenario, con los
+  /// percentiles reales de las 5.000 trayectorias en cada año.
+  ///
+  /// El fallback sintético queda solo por si este APK termina hablando con un
+  /// backend anterior a ese cambio; contra el backend actual nunca corre.
+  static Curva _curvaDe(double hoy, Map<String, dynamic> e) {
+    final c = e['curva'];
+    if (c is Map) return Curva.fromJson(c.cast<String, dynamic>());
+    return _curvaAproximada(hoy, e);
+  }
+
+  /// FALLBACK. Aproximación que la app usaba cuando `/montecarlo` solo devolvía
+  /// percentiles al horizonte: mediana lineal, banda ∝ √t. El ancho de banda
+  /// se acerca bastante al real, pero la mediana sale recta y la del motor
+  /// tiene curvatura — por eso dejó de ser el camino principal.
+  static Curva _curvaAproximada(double hoy, Map<String, dynamic> e) {
     final med = _m(e), p10 = (e['edad_biologica_p10'] as num).toDouble(), p90 = (e['edad_biologica_p90'] as num).toDouble();
     final anios = List.generate(horizonte + 1, (i) => i);
     final m = <double>[], lo = <double>[], hi = <double>[];
