@@ -28,6 +28,15 @@ class Settings(BaseSettings):
     #: have one; "*" is fine while nothing is authenticated with cookies.
     cors_origins: str = "*"
 
+    # ---- supabase auth ----
+    #: e.g. https://<project-ref>.supabase.co — used to locate the JWKS endpoint
+    #: that verifies user tokens. No API key is needed: the backend reaches
+    #: Postgres directly and only ever verifies already-signed JWTs.
+    supabase_url: str = ""
+    supabase_jwt_audience: str = "authenticated"
+    #: How long a fetched signing key is trusted before it is re-fetched.
+    jwks_cache_seconds: int = 3600
+
     # ---- database ----
     #: Supabase → Project Settings → Database → Connection string → Transaction
     #: pooler (port 6543). Either the postgresql:// or postgresql+asyncpg://
@@ -36,6 +45,14 @@ class Settings(BaseSettings):
     #: Held separately so the password can be rotated without rewriting the URL.
     database_password: str = ""
     db_echo: bool = False
+
+    @property
+    def jwks_url(self) -> str:
+        return f"{self.supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json"
+
+    @property
+    def jwt_issuer(self) -> str:
+        return f"{self.supabase_url.rstrip('/')}/auth/v1"
 
     @property
     def cors_origin_list(self) -> list[str]:

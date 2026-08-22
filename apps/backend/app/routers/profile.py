@@ -1,0 +1,166 @@
+"""The user's own profile — page one of the intake form."""
+
+from __future__ import annotations
+
+import uuid
+from datetime import date
+from decimal import Decimal
+from typing import Annotated, Literal
+
+from fastapi import APIRouter, Depends, status
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.auth import CurrentUserDep
+from app.db import get_db
+from app.models import Profile
+
+router = APIRouter(prefix="/me", tags=["profile"])
+
+SessionDep = Annotated[AsyncSession, Depends(get_db)]
+
+BloodType = Literal["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
+SexAtBirth = Literal["female", "male", "intersex"]
+
+#: The fields page one asks for, in the order the form presents them. Progress
+#: is computed from this list so the UI counter cannot drift from what is
+#: actually stored.
+PAGE_ONE_FIELDS = (
+    "full_name",
+    "date_of_birth",
+    "height_cm",
+    "weight_kg",
+    "blood_type",
+    "sex_at_birth",
+)
+
+MIN_AGE_YEARS = 18
+MAX_AGE_YEARS = 120
+
+
+def _age_on(born: date, today: date) -> int:
+    return today.year - born.year - ((today.month, today.day) < (born.month, born.day))
+
+
+class ProfilePatch(BaseModel):
+    """Every field optional: the form saves one answer at a time.
+
+    `exclude_unset` at the call site is what separates "not sent" from "sent as
+    null", so a user can genuinely clear a field without every other field
+    being wiped alongside it.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    full_name: str | None = Field(default=None, min_length=1, max_length=120)
+    date_of_birth: date | None = None
+    height_cm: Decimal | None = Field(default=None, ge=100, le=250, decimal_places=1)
+    weight_kg: Decimal | None = Field(default=None, ge=25, le=350, decimal_places=1)
+    blood_type: BloodType | None = None
+    sex_at_birth: SexAtBirth | None = None
+
+    @field_validator("full_name")
+    @classmethod
+    def _strip(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("full_name cannot be blank")
+        return cleaned
+
+    @field_validator("date_of_birth")
+    @classmethod
+    def _plausible_age(cls, value: date | None) -> date | None:
+        if value is None:
+            return None
+        age = _age_on(value, date.today())
+        if value >= date.today():
+            raise ValueError("date_of_birth must be in the past")
+        if age > MAX_AGE_YEARS:
+            raise ValueError(f"date_of_birth implies an age over {MAX_AGE_YEARS}")
+        if age < MIN_AGE_YEARS:
+            raise ValueError(f"this service is for people aged {MIN_AGE_YEARS} and over")
+        return value
+
+
+class ProfileOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    user_id: uuid.UUID
+    full_name: str | None
+    date_of_birth: date | None
+    height_cm: Decimal | None
+    weight_kg: Decimal | None
+    blood_type: str | None
+    sex_at_birth: str | None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def age(self) -> int | None:
+        """Derived, never stored — see the note on Profile.date_of_birth."""
+        return _age_on(self.date_of_birth, date.today()) if self.date_of_birth else None
+
+
+class MeOut(BaseModel):
+    email: str | None
+    profile: ProfileOut
+    answered: list[str]
+    remaining: list[str]
+    total: int
+    complete: bool
+
+
+def _progress(profile: Profile) -> tuple[list[str], list[str]]:
+    answered = [f for f in PAGE_ONE_FIELDS if getattr(profile, f) is not None]
+    remaining = [f for f in PAGE_ONE_FIELDS if getattr(profile, f) is None]
+    return answered, remaining
+
+
+async def _get_or_create(session: AsyncSession, user_id: uuid.UUID) -> Profile:
+    """First sight of a user creates their row.
+
+    Done as an upsert rather than select-then-insert so two parallel requests
+    from a freshly loaded page cannot race into a duplicate-key error.
+    """
+    await session.execute(
+        insert(Profile).values(user_id=user_id).on_conflict_do_nothing(index_elements=["user_id"])
+    )
+    profile = await session.get(Profile, user_id)
+    assert profile is not None
+    return profile
+
+
+def _me(user_email: str | None, profile: Profile) -> MeOut:
+    answered, remaining = _progress(profile)
+    return MeOut(
+        email=user_email,
+        profile=ProfileOut.model_validate(profile),
+        answered=answered,
+        remaining=remaining,
+        total=len(PAGE_ONE_FIELDS),
+        complete=not remaining,
+    )
+
+
+@router.get("", summary="The signed-in user and their profile")
+async def read_me(user: CurrentUserDep, session: SessionDep) -> MeOut:
+    return _me(user.email, await _get_or_create(session, user.id))
+
+
+@router.patch("", summary="Save one or more profile answers")
+async def update_me(patch: ProfilePatch, user: CurrentUserDep, session: SessionDep) -> MeOut:
+    profile = await _get_or_create(session, user.id)
+    for field, value in patch.model_dump(exclude_unset=True).items():
+        setattr(profile, field, value)
+    await session.flush()
+    await session.refresh(profile)
+    return _me(user.email, profile)
+
+
+@router.delete("", status_code=status.HTTP_204_NO_CONTENT, summary="Erase this user's data")
+async def delete_me(user: CurrentUserDep, session: SessionDep) -> None:
+    profile = await session.get(Profile, user.id)
+    if profile is not None:
+        await session.delete(profile)

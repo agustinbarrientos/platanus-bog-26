@@ -39,19 +39,74 @@ statement cache, which pgbouncer in transaction mode cannot support.
 If the password contains `@ : / ? #`, percent-encode it inside the URL —
 `@` becomes `%40` — or the URL parser splits on it.
 
+## Auth
+
+Users sign in against Supabase **directly from the frontend** with email and
+password. No password ever reaches this service — it only receives an
+already-signed JWT and verifies it offline against the project's JWKS keys
+(ES256), checking signature, expiry, issuer and audience.
+
+Do not add a signup endpoint here that proxies the password through. It puts
+plaintext credentials into this service's logs and error traces for no gain.
+
+```javascript
+// apps/web
+await supabase.auth.signUp({ email, password })
+const { data } = await supabase.auth.getSession()
+fetch(`${API}/me`, { headers: { Authorization: `Bearer ${data.session.access_token}` } })
+```
+
+Supabase dashboard checklist, or none of this works:
+
+- Authentication → Providers → **Email** enabled
+- **Confirm email** on (real accounts) — users must click the link before their first sign-in
+- Authentication → URL Configuration → add the Vercel domain *and* `http://localhost:3000`
+- Minimum password length 8+, and turn on leaked-password protection
+
+The backend connects to Postgres as `postgres`, which **bypasses RLS**. RLS is
+enabled on every table anyway, because that closes Supabase's PostgREST path
+(reachable with the anon key) — but it is not what protects the API. Every
+query must filter by `user_id` itself. That is the real access control.
+
+## Endpoints
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/health` | Liveness — Render pings this, keep it dependency-free |
+| `GET` | `/health/ready` | Database reachable |
+| `GET` | `/me` | Signed-in user + profile; creates the row on first sight |
+| `PATCH` | `/me` | Save any subset of the profile fields |
+| `DELETE` | `/me` | Erase this user's data |
+
+`PATCH /me` is partial by design: the intake form saves one answer at a time
+and a user who abandons at question three must be able to resume. Sending
+`{"weight_kg": 74.2}` leaves every other field untouched; sending
+`{"blood_type": null}` clears that one field only.
+
+Page one collects `full_name`, `date_of_birth`, `height_cm`, `weight_kg`,
+`blood_type`, `sex_at_birth`. The response carries `answered` / `remaining` /
+`complete` so the UI progress counter is computed server-side and cannot drift
+from what is actually stored.
+
+Age is **derived from `date_of_birth`, never stored** — a stored age is wrong
+by the user's next birthday, and survival curves are very age-sensitive.
+
 ## Layout
 
 ```
 app/
-  main.py            app factory: CORS, lifespan, router wiring
-  config.py          env-driven settings
-  db.py              engine, session dependency, Supabase URL fix-ups
-  models.py          tables
+  main.py               app factory: CORS, lifespan, router wiring
+  config.py             env-driven settings
+  auth.py               JWT verification, CurrentUser dependency
+  db.py                 engine, session dependency, Supabase URL fix-ups
+  models.py             tables
   routers/
-    health.py        /health (liveness, Render pings this) and /health/ready (database)
-    items.py         CRUD backed by Postgres
-schema.sql           run once in the Supabase SQL editor
-scripts/check_db.py  end-to-end connection test
+    health.py           /health (liveness) and /health/ready (database)
+    profile.py          /me — the intake form
+    items.py            scratch table from the connection test, safe to delete
+schema.sql              the schema
+scripts/apply_schema.py apply schema.sql (idempotent)
+scripts/check_db.py     end-to-end connection test
 ```
 
 ## Adding endpoints
