@@ -396,15 +396,41 @@ passes an explicit `escenarios` list keeps behaving exactly as before.
       "nombre": "Sin intervención (línea base)",
       "edad_biologica_p10": 51.76,
       "edad_biologica_mediana": 57.65,
-      "edad_biologica_p90": 63.44
+      "edad_biologica_p90": 63.44,
+      "curva": {
+        "anios":    [0,     1,     "...", 10],
+        "p10":      [52.30, 51.62, "...", 51.76],
+        "mediana":  [52.30, 53.44, "...", 57.65],
+        "p90":      [52.30, 55.28, "...", 63.44]
+      }
     }
   ]
 }
 ```
-`p10`/`mediana`/`p90` are percentiles of simulated biological age across all
-trajectories for that scenario at the horizon — not a confidence interval,
-the actual spread the noise model produces. Compare scenarios by their
-medians; the p10–p90 band is what a UI should render as the "fan of futures."
+`edad_biologica_p10`/`mediana`/`p90` are percentiles of simulated biological
+age across all trajectories for that scenario **at the horizon** — not a
+confidence interval, the actual spread the noise model produces. Compare
+scenarios by their medians.
+
+`curva` is the same three percentiles **year by year**, `anios[i]` counted from
+today (`0` = today). Its last point is exactly the flat `edad_biologica_*`
+above it, and its first point is the same for every scenario (no drift or noise
+has been applied yet, so the band has zero width at year 0 and the median
+equals what `/phenoage` returns). This is the fan a UI renders — the app no
+longer needs to interpolate one locally.
+
+Two properties the engine guarantees, both covered in `tests/test_montecarlo.py`:
+
+- **The p10–p90 band widens every year.** More distance, less certainty. A band
+  that narrowed with time would be the model claiming it knows the far future
+  better than the near one.
+- **Imputed biomarkers widen the band.** A biomarker that came from the
+  reference-median table instead of a lab gets its annual noise multiplied by
+  `SIGMA_IMPUTADO_FACTOR` (2.0), so a profile with 3 of 9 values inferred
+  projects a visibly wider fan than a fully measured one. Measuring one more
+  biomarker narrows it. Note this widens the band **symmetrically** — it does
+  not shift the median, so a user who uploaded no labs gets a less certain
+  answer, not a worse prognosis.
 
 > Intervention effect sizes are **approximate and derived from epidemiological
 > literature** — each one is annotated in `app/health_metrics/interventions.py`

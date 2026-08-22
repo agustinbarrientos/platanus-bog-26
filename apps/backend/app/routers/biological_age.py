@@ -98,12 +98,24 @@ class MontecarloIn(BaseModel):
     anios: int = Field(default=montecarlo.DEFAULT_ANIOS, ge=1, le=montecarlo.MAX_ANIOS)
 
 
+class CurvaOut(BaseModel):
+    """El abanico completo año por año — lo que la pantalla "Tu futuro" dibuja.
+    `anios[i]` son años desde hoy (0 = hoy), y el último punto de cada serie
+    coincide con los `edad_biologica_*` planos del escenario."""
+
+    anios: list[int]
+    p10: list[float]
+    mediana: list[float]
+    p90: list[float]
+
+
 class EscenarioOut(BaseModel):
     escenario: str
     nombre: str
     edad_biologica_p10: float
     edad_biologica_mediana: float
     edad_biologica_p90: float
+    curva: CurvaOut
 
 
 class MontecarloOut(BaseModel):
@@ -121,6 +133,12 @@ class MontecarloOut(BaseModel):
                         "edad_biologica_p10": 60.1,
                         "edad_biologica_mediana": 63.8,
                         "edad_biologica_p90": 67.2,
+                        "curva": {
+                            "anios": [0, 1, "...", 10],
+                            "p10": [58.3, 57.9, "...", 60.1],
+                            "mediana": [58.3, 59.1, "...", 63.8],
+                            "p90": [58.3, 60.4, "...", 67.2],
+                        },
                     },
                     {
                         "escenario": "combinada",
@@ -128,6 +146,7 @@ class MontecarloOut(BaseModel):
                         "edad_biologica_p10": 53.4,
                         "edad_biologica_mediana": 56.9,
                         "edad_biologica_p90": 60.2,
+                        "curva": {"anios": [0, 1, "..."], "p10": ["..."], "mediana": ["..."], "p90": ["..."]},
                     },
                 ],
             }
@@ -174,6 +193,12 @@ async def run_montecarlo(
                 edad_biologica_p10=round(r.edad_biologica_p10, 2),
                 edad_biologica_mediana=round(r.edad_biologica_mediana, 2),
                 edad_biologica_p90=round(r.edad_biologica_p90, 2),
+                curva=CurvaOut(
+                    anios=r.curva_anios,
+                    p10=[round(v, 2) for v in r.curva_p10],
+                    mediana=[round(v, 2) for v in r.curva_mediana],
+                    p90=[round(v, 2) for v in r.curva_p90],
+                ),
             )
             for r in resultados
         ],
