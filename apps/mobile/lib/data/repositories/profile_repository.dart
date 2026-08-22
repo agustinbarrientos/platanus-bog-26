@@ -33,6 +33,33 @@ class ProfileRepository {
   Future<Map<String, dynamic>> patchHealthContext(Map<String, dynamic> patch) async =>
       ((await _api.patch('/me/health-context', body: patch)) as Map).cast<String, dynamic>();
 
+  /// Le dice al backend "terminé el onboarding" (`health_context
+  /// .onboarding_completo`). Best-effort: si falla queda solo local y el
+  /// backend lo sigue viendo como no terminado hasta que algo lo reintente
+  /// (p. ej. el próximo `syncOnboarding`, o una nueva sesión).
+  Future<bool> markOnboardingCompletoBackend() async {
+    try {
+      await patchHealthContext({'onboarding_completo': true});
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// ¿El backend ya sabe que este usuario terminó el onboarding? Para un
+  /// dispositivo nuevo o una reinstalación, donde el local (`SharedPreferences`)
+  /// no tiene nada aunque el backend sí. Nunca lanza: sin red o con el
+  /// backend dormido, se trata como "no sabemos" (`false`) y el onboarding
+  /// local decide como si nada — no bloquea el arranque de la app.
+  Future<bool> fetchOnboardingCompletoBackend() async {
+    try {
+      final j = await getHealthContext();
+      return j['onboarding_completo'] == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Sube el onboarding extendido al backend (lo que cabe en health-context).
   /// Best-effort: si falla (Render dormido, sin red) queda el local y se
   /// reintenta en la próxima edición.

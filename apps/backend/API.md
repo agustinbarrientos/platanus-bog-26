@@ -217,7 +217,8 @@ Returns nulls/empty collections for anything never saved.
   "historia_familiar": ["diabetes_t2", "alzheimer_materno"],
   "objetivos_usuario": ["energia", "prevencion"],
   "datos_faltantes": ["creatinina", "fosfatasa_alcalina", "APOE"],
-  "notas_incertidumbre": "texto libre"
+  "notas_incertidumbre": "texto libre",
+  "onboarding_completo": true
 }
 ```
 
@@ -231,6 +232,12 @@ of this endpoint:
   (arrays) **replace wholesale** when sent — there's no single sensible
   "merge" for a list, so resend the full array each time you update it.
 - `notas_incertidumbre` (string) replaces when sent.
+- `onboarding_completo` (bool, default `false`) replaces when sent — **not**
+  derived from how much of the rest of this resource is filled in. The app
+  sets it explicitly when its own onboarding flow finishes (which includes
+  steps this schema never sees: photo, genetic test, wearable provider). A
+  new device/reinstall should `GET` this on login/session-restore and skip
+  local onboarding if it's already `true`.
 
 **`biomarcadores[].nombre`** is a fixed vocabulary, not free text — an
 unlisted name is a `422`, as is the wrong `unidad` for a name or a `valor`
