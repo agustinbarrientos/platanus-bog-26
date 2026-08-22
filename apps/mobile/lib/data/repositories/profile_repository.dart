@@ -76,7 +76,7 @@ class ProfileRepository {
     final hab = <String, dynamic>{};
     if (d.suenoH != null) hab['sueno_h'] = d.suenoH;
     if (d.tabaco != null) hab['tabaco'] = d.tabaco;
-    if (d.ejercicio != null) hab['actividad'] = _actividad(d.ejercicio!);
+    if (d.ejercicio != null) hab['actividad'] = actividadDesde(d.ejercicio!);
     if (d.alimentacion != null) hab['alimentacion'] = d.alimentacion;
     if (d.estres != null) hab['estres'] = _estres(d.estres!);
     final patch = <String, dynamic>{
@@ -92,7 +92,8 @@ class ProfileRepository {
   }
 
   /// ejercicio (nulo|bajo|moderado|alto) → actividad (baja|media|alta).
-  static String _actividad(String e) => switch (e) { 'nulo' || 'bajo' => 'baja', 'moderado' => 'media', _ => 'alta' };
+  /// Público porque el sync de wearables manda el mismo campo.
+  static String actividadDesde(String e) => switch (e) { 'nulo' || 'bajo' => 'baja', 'moderado' => 'media', _ => 'alta' };
 
   /// estrés (baja|media|alta) → (bajo|medio|alto), como el ejemplo del backend.
   static String _estres(String e) => switch (e) { 'baja' => 'bajo', 'media' => 'medio', _ => 'alto' };
