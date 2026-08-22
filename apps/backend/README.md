@@ -126,6 +126,9 @@ app/
     health.py           /health (liveness) and /health/ready (database)
     auth.py             /auth — accounts and sessions
     profile.py          /me — the intake form
+    health_context.py   /me/health-context — biomarkers, habits, risk-assessment intake
+    biological_age.py   /me/health-context/{phenoage,montecarlo} — compute, no state of its own
+  health_metrics/        pure compute: PhenoAge formula, NHANES imputation, Monte Carlo sim
 schema.sql              the schema
 scripts/apply_schema.py apply schema.sql (idempotent)
 ```

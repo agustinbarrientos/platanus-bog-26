@@ -9,3 +9,5 @@ sqlalchemy[asyncio]>=2.0.36
 asyncpg>=0.30
 # argon2id password hashing. 23.1 is where InvalidHashError got its name.
 argon2-cffi>=23.1
+# Vectorized biomarker random walk in the Monte Carlo simulation.
+numpy>=2.0

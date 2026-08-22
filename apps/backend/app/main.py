@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import Settings, get_settings
 from app.db import dispose_engine
-from app.routers import auth, health, profile
+from app.routers import auth, biological_age, health, health_context, profile
 
 log = logging.getLogger("app")
 
@@ -62,6 +62,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth.router)
     app.include_router(profile.router)
     app.include_router(profile.profiles_router)
+    app.include_router(health_context.router)
+    app.include_router(biological_age.router)
 
     @app.get("/", tags=["meta"], summary="Service banner")
     async def root() -> dict[str, str]:

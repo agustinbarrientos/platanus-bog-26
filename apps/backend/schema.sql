@@ -106,6 +106,31 @@ create table if not exists public.profiles (
 alter table public.profiles enable row level security;
 
 
+-- ------------------------------------------------------ health context --
+--
+-- The longevity/risk-assessment intake: demographics, biomarkers, habits,
+-- family history and the caller's stated goals. JSONB rather than one column
+-- per field or a child table per biomarker, because the shape underneath is
+-- defined by whatever assessment produced it, not by this schema.
+
+create table if not exists public.health_context (
+    user_id              uuid primary key references public.users (id) on delete cascade,
+
+    demografia           jsonb,
+    biomarcadores        jsonb,
+    habitos              jsonb,
+    historia_familiar    jsonb,
+    objetivos_usuario    jsonb,
+    datos_faltantes      jsonb,
+    notas_incertidumbre  text,
+
+    created_at           timestamptz not null default now(),
+    updated_at           timestamptz not null default now()
+);
+
+alter table public.health_context enable row level security;
+
+
 -- ------------------------------------------- migration off Supabase Auth --
 --
 -- Only does anything on a database created before this service owned its own
@@ -163,6 +188,11 @@ create trigger users_touch_updated_at
     before update on public.users
     for each row execute function public.touch_updated_at();
 
+drop trigger if exists health_context_touch_updated_at on public.health_context;
+create trigger health_context_touch_updated_at
+    before update on public.health_context
+    for each row execute function public.touch_updated_at();
+
 
 -- Belt and braces alongside RLS: Supabase grants the anon and authenticated
 -- roles access to the public schema by default, and the users table holds
@@ -170,10 +200,12 @@ create trigger users_touch_updated_at
 do $$
 begin
     if exists (select 1 from pg_roles where rolname = 'anon') then
-        revoke all on public.users, public.auth_tokens, public.profiles from anon;
+        revoke all on public.users, public.auth_tokens, public.profiles, public.health_context
+            from anon;
     end if;
     if exists (select 1 from pg_roles where rolname = 'authenticated') then
-        revoke all on public.users, public.auth_tokens, public.profiles from authenticated;
+        revoke all on public.users, public.auth_tokens, public.profiles, public.health_context
+            from authenticated;
     end if;
 end
 $$;

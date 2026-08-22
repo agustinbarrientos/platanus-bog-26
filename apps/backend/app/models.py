@@ -13,9 +13,10 @@ from sqlalchemy import (
     Index,
     Numeric,
     String,
+    Text,
     func,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -132,6 +133,41 @@ class Profile(Base):
     weight_kg: Mapped[float | None] = mapped_column(Numeric(5, 1), nullable=True)
     blood_type: Mapped[str | None] = mapped_column(String(3), nullable=True)
     sex_at_birth: Mapped[str | None] = mapped_column(String(10), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class HealthContext(Base):
+    """One row per user: the longevity/risk-assessment intake — demographics,
+    biomarkers, habits, family history and the caller's stated goals.
+
+    Each field is a JSONB blob rather than its own table because the shape
+    underneath (which biomarkers, which goals) is defined by whatever
+    assessment produced it, not by this schema. A PATCH replaces a field
+    wholesale — same "answer one question at a time" contract as `profiles`.
+    """
+
+    __tablename__ = "health_context"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+
+    demografia: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    biomarcadores: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    habitos: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    historia_familiar: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    objetivos_usuario: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    #: What the assessment couldn't fill in — kept explicit rather than
+    #: inferred from nulls, since a missing biomarker and one that came back
+    #: normal-and-unmentioned are different things.
+    datos_faltantes: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    notas_incertidumbre: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
