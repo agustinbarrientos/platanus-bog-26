@@ -15,11 +15,7 @@ html:has(.moirai) {
 }
 
 .moirai a {
-  color: var(--sky-600);
   text-decoration: none;
-}
-.moirai a:hover {
-  color: var(--sky-700);
 }
 
 /* Fredoka carries every number and heading; Nunito carries prose. */
