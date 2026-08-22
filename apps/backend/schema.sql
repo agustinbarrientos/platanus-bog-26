@@ -92,7 +92,7 @@ create table if not exists public.profiles (
     -- nonsense when a value *is* present, because a twin fed a 700 kg weight
     -- does not error, it produces a confident and wrong survival curve.
     constraint profiles_sex_at_birth_valid
-        check (sex_at_birth is null or sex_at_birth in ('female','male','intersex')),
+        check (sex_at_birth is null or sex_at_birth in ('F','M')),
     constraint profiles_blood_type_valid
         check (blood_type is null or blood_type in ('A+','A-','B+','B-','AB+','AB-','O+','O-')),
     constraint profiles_height_plausible
@@ -104,6 +104,22 @@ create table if not exists public.profiles (
 );
 
 alter table public.profiles enable row level security;
+
+-- sex_at_birth narrowed from ('female','male','intersex') to ('F','M') — age
+-- and sex now come from this column for the PhenoAge/Monte Carlo/chat
+-- endpoints, which need a fixed two-bucket value to look up NHANES medians
+-- by. Constraint dropped *before* the remap below — updating 'male' -> 'M'
+-- while the old CHECK is still live rejects 'M' as an invalid value, since
+-- the old constraint doesn't know about it yet. 'intersex' has no
+-- equivalent bucket, so it clears to null rather than being force-mapped.
+alter table public.profiles drop constraint if exists profiles_sex_at_birth_valid;
+
+update public.profiles set sex_at_birth = 'F' where sex_at_birth = 'female';
+update public.profiles set sex_at_birth = 'M' where sex_at_birth = 'male';
+update public.profiles set sex_at_birth = null where sex_at_birth = 'intersex';
+
+alter table public.profiles add constraint profiles_sex_at_birth_valid
+    check (sex_at_birth is null or sex_at_birth in ('F','M'));
 
 
 -- ------------------------------------------------------ health context --

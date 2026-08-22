@@ -31,7 +31,7 @@ profiles_router = APIRouter(prefix="/profiles", tags=["profile"])
 SessionDep = Annotated[AsyncSession, Depends(get_db)]
 
 BloodType = Literal["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
-SexAtBirth = Literal["female", "male", "intersex"]
+SexAtBirth = Literal["F", "M"]
 
 #: The fields page one asks for, in the order the form presents them. Progress
 #: is computed from this list so the UI counter cannot drift from what is
@@ -49,7 +49,7 @@ MIN_AGE_YEARS = 18
 MAX_AGE_YEARS = 120
 
 
-def _age_on(born: date, today: date) -> int:
+def age_on(born: date, today: date) -> int:
     return today.year - born.year - ((today.month, today.day) < (born.month, born.day))
 
 
@@ -91,7 +91,7 @@ class ProfilePatch(BaseModel):
     def _plausible_age(cls, value: date | None) -> date | None:
         if value is None:
             return None
-        age = _age_on(value, date.today())
+        age = age_on(value, date.today())
         if value >= date.today():
             raise ValueError("date_of_birth must be in the past")
         if age > MAX_AGE_YEARS:
@@ -111,7 +111,7 @@ class ProfileOut(BaseModel):
                 "height_cm": 163.0,
                 "weight_kg": 58.4,
                 "blood_type": "A-",
-                "sex_at_birth": "female",
+                "sex_at_birth": "F",
                 "age": 34,
             }
         },
@@ -129,7 +129,7 @@ class ProfileOut(BaseModel):
     @property
     def age(self) -> int | None:
         """Derived, never stored — see the note on Profile.date_of_birth."""
-        return _age_on(self.date_of_birth, date.today()) if self.date_of_birth else None
+        return age_on(self.date_of_birth, date.today()) if self.date_of_birth else None
 
 
 class MeOut(BaseModel):
@@ -143,7 +143,7 @@ class MeOut(BaseModel):
                     "height_cm": 163.0,
                     "weight_kg": 58.4,
                     "blood_type": "A-",
-                    "sex_at_birth": "female",
+                    "sex_at_birth": "F",
                     "age": 34,
                 },
                 "answered": ["full_name", "date_of_birth", "height_cm", "weight_kg",
@@ -182,6 +182,19 @@ async def _get_or_create(session: AsyncSession, user_id: uuid.UUID) -> Profile:
     profile = await session.get(Profile, user_id)
     assert profile is not None
     return profile
+
+
+async def biological_inputs(
+    session: AsyncSession, user_id: uuid.UUID
+) -> tuple[float | None, str | None]:
+    """Chronological age (from `date_of_birth`) and `sex_at_birth`, for
+    whichever compute endpoint needs them (PhenoAge, Monte Carlo, the chat
+    agent) instead of asking the caller to repeat birthdate/sex into
+    `health_context` as well."""
+    profile = await session.get(Profile, user_id)
+    if profile is None or profile.date_of_birth is None:
+        return None, profile.sex_at_birth if profile else None
+    return age_on(profile.date_of_birth, date.today()), profile.sex_at_birth
 
 
 def _me(user_email: str, profile: Profile) -> MeOut:

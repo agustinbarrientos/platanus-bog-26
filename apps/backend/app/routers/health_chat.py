@@ -1,8 +1,8 @@
 """An agent the user can ask to interpret their own stored health data —
-biomarkers, habits, family history, and PhenoAge if `demografia.edad` is on
-file. Every reply is grounded in exactly what `/me/health-context` holds for
-that user, recomputed fresh on each turn; the agent gets no other data source
-and no tools of its own.
+biomarkers, habits, family history, and PhenoAge if `date_of_birth`/
+`sex_at_birth` are on the profile. Every reply is grounded in exactly what
+`/me/health-context` and `/me` hold for that user, recomputed fresh on each
+turn; the agent gets no other data source and no tools of its own.
 
 Stateless like the rest of this API's chat-shaped surface: the caller sends
 the full conversation history each turn (`ConversationManager` pattern) and
@@ -27,6 +27,7 @@ from app.health_metrics import phenoage
 from app.health_metrics.biomarkers import PHENOAGE_BIOMARKERS
 from app.health_metrics.phenoage import PhenoAgeResult
 from app.models import HealthContext
+from app.routers.profile import biological_inputs
 
 log = logging.getLogger("app")
 
@@ -34,8 +35,11 @@ router = APIRouter(prefix="/me/health-context", tags=["health-chat"])
 
 SessionDep = Annotated[AsyncSession, Depends(get_db)]
 
-MODEL = "claude-opus-5"
-MAX_TOKENS = 2048
+#: Cheapest current model ($1.00/$5.00 per 1M tokens) — this is grounded Q&A
+#: over data already computed for it, not open-ended reasoning, so it doesn't
+#: need a bigger model.
+MODEL = "claude-haiku-4-5"
+MAX_TOKENS = 1024
 #: Keeps one request from ballooning into an unbounded, unbounded-cost prompt —
 #: same spirit as the Monte Carlo trajectory/year caps.
 MAX_HISTORY_TURNS = 40
@@ -45,12 +49,16 @@ MAX_MESSAGE_LENGTH = 4000
 async def _load_context(
     session: AsyncSession, user_id
 ) -> tuple[dict, PhenoAgeResult | None]:
-    """Everything in `/me/health-context`, plus PhenoAge computed fresh if
-    there's enough on file to compute it — the same two data sources the
-    `/phenoage` endpoint uses, gathered here without its 422-on-missing-age
-    behavior, since chat should degrade gracefully instead of failing."""
+    """Everything in `/me/health-context`, plus the profile's age/sex and
+    PhenoAge computed fresh if there's enough on file to compute it — the
+    same data sources `/phenoage` uses, gathered here without its
+    422-on-missing behavior, since chat should degrade gracefully instead of
+    failing."""
+    edad, sexo = await biological_inputs(session, user_id)
+
     row = await session.get(HealthContext, user_id)
     context = {
+        "perfil": {"edad": edad, "sexo_biologico": sexo},
         "demografia": (row.demografia if row else None) or {},
         "biomarcadores": (row.biomarcadores if row else None) or [],
         "habitos": (row.habitos if row else None) or {},
@@ -60,8 +68,7 @@ async def _load_context(
         "notas_incertidumbre": (row.notas_incertidumbre if row else None),
     }
 
-    edad = context["demografia"].get("edad")
-    if edad is None:
+    if edad is None or sexo is None:
         return context, None
 
     biomarcadores = {
@@ -69,7 +76,7 @@ async def _load_context(
         for b in context["biomarcadores"]
         if b["nombre"] in PHENOAGE_BIOMARKERS
     }
-    result = phenoage.compute(biomarcadores, float(edad), context["demografia"].get("sexo_biologico"))
+    result = phenoage.compute(biomarcadores, edad, sexo)
     return context, result
 
 

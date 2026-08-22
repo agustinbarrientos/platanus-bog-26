@@ -24,8 +24,6 @@ SessionDep = Annotated[AsyncSession, Depends(get_db)]
 
 _EXAMPLE = {
     "demografia": {
-        "edad": 52,
-        "sexo_biologico": "F",
         "ancestria_reportada": "mixta_latam",
         "escolaridad_anios": 12,
     },
@@ -55,10 +53,11 @@ _EXAMPLE = {
 
 
 class Demografia(BaseModel):
+    """Age and sex live on the profile (`date_of_birth`, `sex_at_birth` via
+    `/me`) — not duplicated here."""
+
     model_config = ConfigDict(extra="forbid")
 
-    edad: int | None = None
-    sexo_biologico: str | None = None
     ancestria_reportada: str | None = None
     escolaridad_anios: int | None = None
 

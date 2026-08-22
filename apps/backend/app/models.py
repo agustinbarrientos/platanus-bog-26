@@ -24,7 +24,7 @@ from app.db import Base
 #: Kept as plain strings with a CHECK rather than a Postgres ENUM: adding a
 #: value to an ENUM needs a migration and cannot run inside some transactions,
 #: which is a bad trade during a weekend of schema churn.
-SEX_AT_BIRTH = ("female", "male", "intersex")
+SEX_AT_BIRTH = ("F", "M")
 BLOOD_TYPES = ("A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-")
 
 
@@ -98,7 +98,7 @@ class Profile(Base):
     __tablename__ = "profiles"
     __table_args__ = (
         CheckConstraint(
-            "sex_at_birth is null or sex_at_birth in ('female','male','intersex')",
+            "sex_at_birth is null or sex_at_birth in ('F','M')",
             name="profiles_sex_at_birth_valid",
         ),
         CheckConstraint(

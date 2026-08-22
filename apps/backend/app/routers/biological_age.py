@@ -19,6 +19,7 @@ from app.health_metrics import montecarlo, phenoage
 from app.health_metrics.biomarkers import PHENOAGE_BIOMARKERS
 from app.health_metrics.interventions import SCENARIOS
 from app.models import HealthContext
+from app.routers.profile import biological_inputs
 
 router = APIRouter(prefix="/me/health-context", tags=["biological-age"])
 
@@ -28,24 +29,23 @@ SessionDep = Annotated[AsyncSession, Depends(get_db)]
 async def _read_inputs(
     session: AsyncSession, user_id
 ) -> tuple[float, str | None, dict[str, float]]:
-    """Chronological age, biological sex, and whichever PhenoAge biomarkers
+    """Chronological age (from the profile) and whichever PhenoAge biomarkers
     are on file — everything both compute endpoints need."""
-    row = await session.get(HealthContext, user_id)
-    demografia = (row.demografia if row else None) or {}
-    edad = demografia.get("edad")
-    if edad is None:
+    edad, sexo = await biological_inputs(session, user_id)
+    if edad is None or sexo is None:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="falta demografia.edad — PATCH /me/health-context antes de calcular",
+            detail="falta date_of_birth y/o sex_at_birth — PATCH /me antes de calcular",
         )
 
+    row = await session.get(HealthContext, user_id)
     biomarcadores_guardados = (row.biomarcadores if row else None) or []
     biomarcadores = {
         b["nombre"]: b["valor"]
         for b in biomarcadores_guardados
         if b["nombre"] in PHENOAGE_BIOMARKERS
     }
-    return float(edad), demografia.get("sexo_biologico"), biomarcadores
+    return edad, sexo, biomarcadores
 
 
 class PhenoAgeOut(BaseModel):
@@ -144,7 +144,7 @@ class MontecarloOut(BaseModel):
 @router.post(
     "/montecarlo",
     summary="N-trajectory Monte Carlo projection of PhenoAge under each intervention scenario",
-    responses={422: {"description": "Unknown scenario key, or demografia.edad is not on file"}},
+    responses={422: {"description": "Unknown scenario key, or date_of_birth/sex_at_birth is not on file"}},
 )
 async def run_montecarlo(
     body: MontecarloIn, user: CurrentUserDep, session: SessionDep
