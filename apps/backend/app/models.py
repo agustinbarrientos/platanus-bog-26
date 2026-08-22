@@ -6,6 +6,7 @@ import uuid
 from datetime import date, datetime
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Date,
     DateTime,
@@ -168,6 +169,13 @@ class HealthContext(Base):
     #: normal-and-unmentioned are different things.
     datos_faltantes: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     notas_incertidumbre: Mapped[str | None] = mapped_column(Text, nullable=True)
+    suplementos: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    #: Connection status only (provider + linked). The raw data feed from a
+    #: wearable is not stored anywhere yet — see API.md.
+    wearable: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    #: Unlike the JSONB fields above, always present — set explicitly by the
+    #: app when its onboarding flow finishes, not derived from field coverage.
+    onboarding_completo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

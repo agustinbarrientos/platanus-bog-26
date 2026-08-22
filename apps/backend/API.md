@@ -197,7 +197,9 @@ Returns nulls/empty collections for anything never saved.
 {
   "demografia": {
     "ancestria_reportada": "mixta_latam",
-    "escolaridad_anios": 12
+    "escolaridad_anios": 12,
+    "nacionalidad": "chilena",
+    "pais_residencia": "Chile"
   },
   "biomarcadores": [
     {"nombre": "hs_CRP", "valor": 2.1, "unidad": "mg/L", "fuente": "documento"},
@@ -209,28 +211,48 @@ Returns nulls/empty collections for anything never saved.
   ],
   "habitos": {
     "sueno_h": 6,
+    "sueno_calidad": "regular",
     "tabaco": false,
     "actividad": "baja",
     "alimentacion": "media",
-    "estres": "alto"
+    "alimentacion_patron": ["alto_ultraprocesados", "bajo_fibra"],
+    "estres": "alto",
+    "alcohol_frecuencia": "semanal",
+    "alcohol_nivel": "moderado"
   },
   "historia_familiar": ["diabetes_t2", "alzheimer_materno"],
   "objetivos_usuario": ["energia", "prevencion"],
   "datos_faltantes": ["creatinina", "fosfatasa_alcalina", "APOE"],
-  "notas_incertidumbre": "texto libre"
+  "notas_incertidumbre": "texto libre",
+  "suplementos": [
+    {"nombre": "Omega-3", "dosis": "1000mg", "frecuencia": "diaria"}
+  ],
+  "wearable": {"proveedor": "apple_health", "conectado": true},
+  "onboarding_completo": true
 }
 ```
 
 **Merge semantics differ by field shape** — this is the one non-obvious part
 of this endpoint:
-- `demografia` and `habitos` (objects) **merge**: a `PATCH` with only
-  `{"habitos": {"estres": "medio"}}` updates just `estres` and leaves
+- `demografia`, `habitos`, and `wearable` (objects) **merge**: a `PATCH` with
+  only `{"habitos": {"estres": "medio"}}` updates just `estres` and leaves
   `sueno_h`, `tabaco`, etc. as they were. Send a sub-field as `null` to clear
   just that one.
-- `biomarcadores`, `historia_familiar`, `objetivos_usuario`, `datos_faltantes`
-  (arrays) **replace wholesale** when sent — there's no single sensible
-  "merge" for a list, so resend the full array each time you update it.
-- `notas_incertidumbre` (string) replaces when sent.
+- `biomarcadores`, `historia_familiar`, `objetivos_usuario`, `datos_faltantes`,
+  `suplementos` (arrays) **replace wholesale** when sent — there's no single
+  sensible "merge" for a list, so resend the full array each time you update it.
+- `notas_incertidumbre` (string) and `onboarding_completo` (bool) replace
+  when sent. `onboarding_completo` defaults to `false` and is **not**
+  derived from field coverage — the app sets it explicitly when its own
+  onboarding flow finishes (which may include steps, like a photo or genetic
+  test upload, that this schema doesn't track — see below).
+- `actividad`, `alimentacion`, `estres`, `sueno_calidad`, `alcohol_frecuencia`,
+  `alcohol_nivel` are free text, not enums — send whatever granularity you
+  collect (e.g. `"nulo"`/`"bajo"`/`"moderado"`/`"alto"` is fine, no need to
+  collapse to fewer buckets before sending).
+- `wearable` is connection status only (`proveedor`, `conectado`) — there is
+  **no endpoint yet** for syncing actual wearable health data. Don't build a
+  frontend flow assuming one exists.
 
 **`biomarcadores[].nombre`** is a fixed vocabulary, not free text — an
 unlisted name is a `422`, as is the wrong `unidad` for a name or a `valor`
@@ -355,14 +377,19 @@ NHANES-style age/sex medians).
 // request — every field optional
 {
   "escenarios": ["ninguna", "ejercicio_aerobico"],  // omit for all 5
-  "n_trayectorias": 5000,   // 100–20000, default 5000
-  "anios": 10               // 1–30, default 10
+  "n_trayectorias": 5000,     // 100–20000, default 5000
+  "anios": 10,                // 1–30, default 10
+  "adherencia": 1.0,          // 0.0–1.0, default 1.0 — see below
+  "percentil_inferior": 10,   // 1–49, default 10
+  "percentil_superior": 90,   // 51–99, default 90
+  "seed": null,                // omit for fresh randomness each call — see below
+  "incluir_trayectoria": false // default false — see below
 }
 ```
 Runs `n_trayectorias` independent 1-year-step simulations per scenario over
 `anios` years, evolving each biomarker with a natural-aging drift + the
-scenario's effect + biological noise, then computes PhenoAge at the horizon
-for every trajectory. `422` if an `escenarios` key isn't one of:
+scenario's effect (scaled by `adherencia`) + biological noise, then scores
+PhenoAge for every trajectory. `422` if an `escenarios` key isn't one of:
 
 | key | label |
 |---|---|
@@ -372,11 +399,37 @@ for every trajectory. `422` if an `escenarios` key isn't one of:
 | `cesacion_tabaco` | Cesación de tabaco |
 | `combinada` | Ejercicio + dieta mediterránea + cesación de tabaco |
 
+- **`adherencia`** scales only the scenario's own intervention effect, never
+  the natural-aging drift everyone gets regardless — `0.0` collapses any
+  scenario to the same result as `ninguna` (no intervention benefit, still
+  ages normally); `1.0` (default) is "the intervention applies in full every
+  year," same behavior as before this parameter existed. Use it to model
+  partial follow-through instead of assuming perfect adherence.
+- **`percentil_inferior`/`percentil_superior`** control the band width
+  around the median — default 10/90 is unchanged from before. The response
+  field names stay `edad_biologica_p10`/`edad_biologica_p90` regardless of
+  what you requested (backward compatible); the response's own
+  `percentil_inferior`/`percentil_superior` say what they actually are.
+- **`seed`** — omit for fresh randomness each call. The seed actually used
+  (generated server-side if you didn't pass one) always comes back in the
+  response's `seed` field, so you can replay the *exact* same run later by
+  passing that value back — useful for a before/after comparison where only
+  one parameter (e.g. `adherencia`) should differ.
+- **`incluir_trayectoria`** — off by default, so the response stays the same
+  shape it always was unless you opt in. When `true`, each scenario also
+  returns `trayectoria`: one entry per simulated year (not just the final
+  horizon), each with its own `p_inferior`/`mediana`/`p_superior` — the
+  actual band-widening-over-time "fan of futures," not just its endpoint.
+
 ```json
 {
   "edad_cronologica": 52,
   "horizonte_anios": 10,
   "trayectorias_por_escenario": 5000,
+  "adherencia": 1.0,
+  "percentil_inferior": 10,
+  "percentil_superior": 90,
+  "seed": 7823914502,
   "campos_inferidos": ["creatinina", "fosfatasa_alcalina", "linfocitos_pct", "vcm", "rdw", "leucocitos"],
   "escenarios": [
     {
@@ -384,15 +437,25 @@ for every trajectory. `422` if an `escenarios` key isn't one of:
       "nombre": "Sin intervención (línea base)",
       "edad_biologica_p10": 51.76,
       "edad_biologica_mediana": 57.65,
-      "edad_biologica_p90": 63.44
+      "edad_biologica_p90": 63.44,
+      "trayectoria": null
     }
   ]
 }
 ```
-`p10`/`mediana`/`p90` are percentiles of simulated biological age across all
-trajectories for that scenario at the horizon — not a confidence interval,
+When `incluir_trayectoria: true`, each scenario's `trayectoria` looks like:
+```json
+[
+  {"anio": 1, "edad_biologica_p_inferior": 46.01, "edad_biologica_mediana": 47.83, "edad_biologica_p_superior": 49.6},
+  {"anio": 2, "...": "..."},
+  {"anio": 10, "edad_biologica_p_inferior": 52.31, "edad_biologica_mediana": 58.27, "edad_biologica_p_superior": 64.05}
+]
+```
+`p10`/`mediana`/`p90` (or `trayectoria[].edad_biologica_p_inferior`/
+`p_superior`, if requested) are percentiles of simulated biological age
+across all trajectories for that scenario/year — not a confidence interval,
 the actual spread the noise model produces. Compare scenarios by their
-medians; the p10–p90 band is what a UI should render as the "fan of futures."
+medians; the band is what a UI should render as the "fan of futures."
 
 > Both intervention effect sizes and the NHANES imputation medians are
 > directional placeholders (see `app/health_metrics/interventions.py` and
@@ -437,6 +500,32 @@ next call to continue the same conversation.
 If the profile's `date_of_birth`/`sex_at_birth` aren't set yet, this endpoint
 does **not** 422 like `/phenoage` does — it still answers, just without a
 PhenoAge figure to reference (it'll say so).
+
+---
+
+## Known gaps — don't build a frontend flow assuming these exist
+
+The onboarding flow collects more than this API currently stores. These are
+real, scoped-out gaps, not oversights — each needs its own design pass
+(most involve storage/infra this repo doesn't have yet), not a quick field
+addition like the ones above:
+
+- **Photo and genetic-test-PDF upload** — no endpoint, and no object storage
+  exists anywhere in this backend to put an uploaded file into. A client
+  holding only a local file path today has nowhere to send it yet.
+- **Wearable raw health data** — `wearable` (above) is connection status
+  only. There's no `/wearables/sync`-type endpoint, and ingesting an actual
+  raw data feed (HealthKit-style records) is a different shape of problem
+  (likely its own time-series table) than the JSONB blobs this resource uses.
+- **Simulation history and plan/adherence tracking** — `/montecarlo` (below)
+  computes and returns a result but saves nothing; there's no persisted
+  concept of "a plan" or "adherence to it" anywhere in this API yet.
+- **Persisted chat history** — `/chat` (above) is deliberately stateless;
+  conversations aren't stored server-side at all.
+
+If a screen depends on any of these, that's a signal to come back and design
+the specific endpoint/table needed — not to assume one of the fields above
+already covers it.
 
 ---
 

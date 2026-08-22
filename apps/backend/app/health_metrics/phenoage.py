@@ -12,6 +12,8 @@ from __future__ import annotations
 import math
 from typing import NamedTuple
 
+import numpy as np
+
 from app.health_metrics.nhanes_reference import impute_missing
 
 #: Gompertz mortality-score constants from the published fit. Not
@@ -65,6 +67,36 @@ def phenoage_years(biomarcadores_formula_units: dict[str, float], edad: float) -
 
     mortality_score = 1 - math.exp((_MORTALITY_SCALE * math.exp(xb)) / _GAMMA)
     return (math.log(_BA_SCALE * math.log(1 - mortality_score)) / _BA_EXPONENT) + _BA_INTERCEPT
+
+
+def phenoage_years_batch(v: dict[str, np.ndarray], edad: np.ndarray | float) -> np.ndarray:
+    """Vectorized twin of `phenoage_years` + `to_formula_units` combined —
+    same coefficients, same unit conversions, `numpy` ufuncs (`np.log`,
+    `np.exp`) instead of `math`'s so it runs on a whole array of trajectories
+    per call instead of one Python-level call per trajectory. Kept as its
+    own function rather than sharing code with the scalar path above,
+    because `math.log` raises on an array — there's no single implementation
+    that serves both without a pluggable-log abstraction that only two
+    callers would ever use. If the formula or unit conversions above change,
+    change this the same way; both read the same `_COEF`/`_INTERCEPT`/etc.
+    constants, so only the *shape* of the conversion could drift, not the
+    numbers.
+    """
+    xb = (
+        _INTERCEPT
+        + _COEF["albumin_gL"] * (v["albumina"] * 10)
+        + _COEF["creatinine_umol"] * (v["creatinina"] * 88.402)
+        + _COEF["glucose_mmol"] * (v["glucosa"] / 18.0182)
+        + _COEF["ln_crp_mgdL"] * np.log(v["hs_CRP"] / 10)
+        + _COEF["lymphocyte_pct"] * v["linfocitos_pct"]
+        + _COEF["mcv_fL"] * v["vcm"]
+        + _COEF["rdw_pct"] * v["rdw"]
+        + _COEF["alp_UL"] * v["fosfatasa_alcalina"]
+        + _COEF["wbc_1000uL"] * v["leucocitos"]
+        + _COEF["age_years"] * edad
+    )
+    mortality_score = 1 - np.exp((_MORTALITY_SCALE * np.exp(xb)) / _GAMMA)
+    return (np.log(_BA_SCALE * np.log(1 - mortality_score)) / _BA_EXPONENT) + _BA_INTERCEPT
 
 
 class PhenoAgeResult(NamedTuple):

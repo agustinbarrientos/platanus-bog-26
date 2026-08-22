@@ -139,10 +139,25 @@ create table if not exists public.health_context (
     objetivos_usuario    jsonb,
     datos_faltantes      jsonb,
     notas_incertidumbre  text,
+    suplementos          jsonb,
+    -- Connection status only (provider + linked) -- the raw wearable data
+    -- feed has nowhere to land yet, this is not that.
+    wearable             jsonb,
+    -- Set explicitly by the app when its onboarding flow finishes, not
+    -- derived from field coverage -- some onboarding steps (photo, genetic
+    -- test) aren't a stored field this schema can check for presence.
+    onboarding_completo  boolean not null default false,
 
     created_at           timestamptz not null default now(),
     updated_at           timestamptz not null default now()
 );
+
+-- Columns added after health_context already existed on some databases --
+-- create table if not exists above is a no-op for an existing table, so an
+-- already-provisioned database needs these added explicitly.
+alter table public.health_context add column if not exists suplementos jsonb;
+alter table public.health_context add column if not exists wearable jsonb;
+alter table public.health_context add column if not exists onboarding_completo boolean not null default false;
 
 alter table public.health_context enable row level security;
 

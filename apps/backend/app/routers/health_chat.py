@@ -66,6 +66,7 @@ async def _load_context(
         "objetivos_usuario": (row.objetivos_usuario if row else None) or [],
         "datos_faltantes": (row.datos_faltantes if row else None) or [],
         "notas_incertidumbre": (row.notas_incertidumbre if row else None),
+        "suplementos": (row.suplementos if row else None) or [],
     }
 
     if edad is None or sexo is None:

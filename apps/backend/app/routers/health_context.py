@@ -26,6 +26,8 @@ _EXAMPLE = {
     "demografia": {
         "ancestria_reportada": "mixta_latam",
         "escolaridad_anios": 12,
+        "nacionalidad": "chilena",
+        "pais_residencia": "Chile",
     },
     "biomarcadores": [
         {"nombre": "hs_CRP", "valor": 2.1, "unidad": "mg/L", "fuente": "documento"},
@@ -37,10 +39,14 @@ _EXAMPLE = {
     ],
     "habitos": {
         "sueno_h": 6,
+        "sueno_calidad": "regular",
         "tabaco": False,
         "actividad": "baja",
         "alimentacion": "media",
+        "alimentacion_patron": ["alto_ultraprocesados", "bajo_fibra"],
         "estres": "alto",
+        "alcohol_frecuencia": "semanal",
+        "alcohol_nivel": "moderado",
     },
     "historia_familiar": ["diabetes_t2", "alzheimer_materno"],
     "objetivos_usuario": ["energia", "prevencion"],
@@ -49,6 +55,11 @@ _EXAMPLE = {
         "creatinina y fosfatasa imputadas de medianas NHANES por edad/sexo; "
         "sin genotipo APOE, se usa CAIDE modelo 1 (sin genética)"
     ),
+    "suplementos": [
+        {"nombre": "Omega-3", "dosis": "1000mg", "frecuencia": "diaria"},
+    ],
+    "wearable": {"proveedor": "apple_health", "conectado": True},
+    "onboarding_completo": True,
 }
 
 
@@ -60,6 +71,8 @@ class Demografia(BaseModel):
 
     ancestria_reportada: str | None = None
     escolaridad_anios: int | None = None
+    nacionalidad: str | None = None
+    pais_residencia: str | None = None
 
 
 class Biomarcador(BaseModel):
@@ -97,10 +110,41 @@ class Habitos(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     sueno_h: float | None = None
+    #: Separate from `sueno_h` — hours slept and how restful it felt are
+    #: different signals, not one derived from the other.
+    sueno_calidad: str | None = None
     tabaco: bool | None = None
+    #: Free text on purpose, same as `actividad`/`estres` below: whatever
+    #: granularity the caller collects (e.g. "nulo"/"bajo"/"moderado"/"alto")
+    #: is stored as-is, not coerced into a fixed set.
     actividad: str | None = None
     alimentacion: str | None = None
+    #: Specific dietary patterns (e.g. "alto_ultraprocesados", "bajo_fibra",
+    #: "alto_azucar") — tags, not a fixed enum, alongside the general
+    #: `alimentacion` quality level above.
+    alimentacion_patron: list[str] | None = None
     estres: str | None = None
+    alcohol_frecuencia: str | None = None
+    alcohol_nivel: str | None = None
+
+
+class Suplemento(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    nombre: str
+    dosis: str | None = None
+    frecuencia: str | None = None
+
+
+class Wearable(BaseModel):
+    """Connection status only — the raw health-data feed from a wearable is
+    a separate, unbuilt endpoint (see API.md); this is just "which provider,
+    and are they linked" for the app to display."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    proveedor: str | None = None
+    conectado: bool = False
 
 
 class HealthContextPatch(BaseModel):
@@ -118,6 +162,13 @@ class HealthContextPatch(BaseModel):
     objetivos_usuario: list[str] | None = None
     datos_faltantes: list[str] | None = None
     notas_incertidumbre: str | None = None
+    suplementos: list[Suplemento] | None = None
+    wearable: Wearable | None = None
+    #: Not derived from `answered`/`remaining`-style field coverage — the
+    #: onboarding flow has optional steps (photo, genetic test) a
+    #: field-completeness check can't see, so the app sets this explicitly
+    #: when its own flow finishes.
+    onboarding_completo: bool | None = None
 
 
 class HealthContextOut(BaseModel):
@@ -130,17 +181,20 @@ class HealthContextOut(BaseModel):
     objetivos_usuario: list[str] | None
     datos_faltantes: list[str] | None
     notas_incertidumbre: str | None
+    suplementos: list[Suplemento] | None
+    wearable: Wearable | None
+    onboarding_completo: bool
 
 
-#: `demografia` and `habitos` are objects the caller fills in one field at a
-#: time, same as the top-level profile — so a PATCH merges into what is
-#: already stored instead of replacing the whole blob and losing siblings the
-#: caller did not happen to resend this round. A key absent from the patch is
-#: left alone; a key sent as `null` clears just that key, same as
-#: `ProfilePatch`. Arrays (`biomarcadores`, `historia_familiar`, ...) are
-#: still replaced wholesale — merging a list has no single obvious meaning,
-#: so the caller resends the full list.
-_MERGED_FIELDS = ("demografia", "habitos")
+#: `demografia`, `habitos` and `wearable` are objects the caller fills in one
+#: field at a time, same as the top-level profile — so a PATCH merges into
+#: what is already stored instead of replacing the whole blob and losing
+#: siblings the caller did not happen to resend this round. A key absent from
+#: the patch is left alone; a key sent as `null` clears just that key, same
+#: as `ProfilePatch`. Arrays (`biomarcadores`, `historia_familiar`,
+#: `suplementos`, ...) are still replaced wholesale — merging a list has no
+#: single obvious meaning, so the caller resends the full list.
+_MERGED_FIELDS = ("demografia", "habitos", "wearable")
 
 
 def _merge_patch(existing: dict | None, patch: dict) -> dict:
