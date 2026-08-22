@@ -6,16 +6,27 @@ import uuid
 from datetime import date
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import CurrentUserDep
+from app.auth import CurrentUser, CurrentUserDep
 from app.db import get_db
 from app.models import Profile
 
+#: Two ways in to the same three handlers.
+#:
+#: `/me` is the one to use: the token already says who is calling, so the app
+#: never has to store the id, thread it through screens, or get it wrong.
+#:
+#: `/profiles/{user_id}` exists for callers that would rather be explicit. It
+#: is *not* a way to reach another user — the id is checked against the token
+#: and a mismatch is a 403. Trusting an id from the client here would mean
+#: anyone with any valid token could read and overwrite anyone else's medical
+#: record by changing a number in the URL.
 router = APIRouter(prefix="/me", tags=["profile"])
+profiles_router = APIRouter(prefix="/profiles", tags=["profile"])
 
 SessionDep = Annotated[AsyncSession, Depends(get_db)]
 
@@ -188,14 +199,14 @@ def _me(user_email: str, profile: Profile) -> MeOut:
     )
 
 
-@router.get("", summary="The signed-in user and their profile")
-async def read_me(user: CurrentUserDep, session: SessionDep) -> MeOut:
+async def _read(user: CurrentUser, session: AsyncSession) -> MeOut:
     return _me(user.email, await _get_or_create(session, user.id))
 
 
-@router.patch("", summary="Save one or more profile answers")
-async def update_me(patch: ProfilePatch, user: CurrentUserDep, session: SessionDep) -> MeOut:
+async def _update(patch: ProfilePatch, user: CurrentUser, session: AsyncSession) -> MeOut:
     profile = await _get_or_create(session, user.id)
+    # exclude_unset is what separates "not sent" from "sent as null", so a user
+    # can genuinely clear one field without wiping every other one.
     for field, value in patch.model_dump(exclude_unset=True).items():
         setattr(profile, field, value)
     await session.flush()
@@ -203,8 +214,68 @@ async def update_me(patch: ProfilePatch, user: CurrentUserDep, session: SessionD
     return _me(user.email, profile)
 
 
-@router.delete("", status_code=status.HTTP_204_NO_CONTENT, summary="Erase this user's data")
-async def delete_me(user: CurrentUserDep, session: SessionDep) -> None:
+async def _erase(user: CurrentUser, session: AsyncSession) -> None:
     profile = await session.get(Profile, user.id)
     if profile is not None:
         await session.delete(profile)
+
+
+def _owner(user_id: uuid.UUID, user: CurrentUserDep) -> CurrentUser:
+    """The id in the path must be the id in the token.
+
+    404 rather than 403 on a mismatch, deliberately: a 403 would confirm that
+    the id belongs to a real account, which is a membership check anyone could
+    run against a list of guessed ids.
+    """
+    if user_id != user.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="perfil no encontrado")
+    return user
+
+
+OwnerDep = Annotated[CurrentUser, Depends(_owner)]
+
+
+# ---- /me — the token says who you are ----
+
+@router.get("", summary="The signed-in user and their profile")
+async def read_me(user: CurrentUserDep, session: SessionDep) -> MeOut:
+    return await _read(user, session)
+
+
+@router.patch("", summary="Save one or more profile answers")
+async def update_me(patch: ProfilePatch, user: CurrentUserDep, session: SessionDep) -> MeOut:
+    return await _update(patch, user, session)
+
+
+@router.delete("", status_code=status.HTTP_204_NO_CONTENT, summary="Erase this user's data")
+async def delete_me(user: CurrentUserDep, session: SessionDep) -> None:
+    await _erase(user, session)
+
+
+# ---- /profiles/{user_id} — the same thing, said out loud ----
+
+_NOT_YOURS = {404: {"description": "No profile with that id belongs to this token"}}
+
+
+@profiles_router.get(
+    "/{user_id}", summary="The user and their profile", responses=_NOT_YOURS
+)
+async def read_profile(user: OwnerDep, session: SessionDep) -> MeOut:
+    return await _read(user, session)
+
+
+@profiles_router.patch(
+    "/{user_id}", summary="Save one or more profile answers", responses=_NOT_YOURS
+)
+async def update_profile(patch: ProfilePatch, user: OwnerDep, session: SessionDep) -> MeOut:
+    return await _update(patch, user, session)
+
+
+@profiles_router.delete(
+    "/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Erase this user's data",
+    responses=_NOT_YOURS,
+)
+async def delete_profile(user: OwnerDep, session: SessionDep) -> None:
+    await _erase(user, session)

@@ -41,6 +41,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
         docs_url="/docs",
         openapi_url="/openapi.json",
+        # Keeps the token entered under **Authorize** across a page reload.
+        # Without it every refresh of /docs signs you out, which makes testing
+        # by hand needlessly painful.
+        swagger_ui_parameters={"persistAuthorization": True},
     )
 
     # Only browsers enforce CORS, so none of this affects the Flutter app.
@@ -58,6 +62,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth.router)
     app.include_router(items.router)
     app.include_router(profile.router)
+    app.include_router(profile.profiles_router)
 
     @app.get("/", tags=["meta"], summary="Service banner")
     async def root() -> dict[str, str]:

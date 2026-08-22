@@ -22,7 +22,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -32,6 +33,12 @@ from app.models import AuthToken
 from app.security import hash_token
 
 _UNAUTHENTICATED = {"WWW-Authenticate": "Bearer"}
+
+#: Declared as a dependency rather than read off the header by hand, because
+#: this is also what puts the scheme in the OpenAPI document — which is what
+#: gives /docs its **Authorize** button. auto_error=False so a missing header
+#: produces the 401 below with a useful message, rather than FastAPI's bare 403.
+_bearer = HTTPBearer(auto_error=False, description="The `token` from /auth/login")
 
 
 @dataclass(frozen=True)
@@ -43,17 +50,11 @@ class CurrentUser:
     token_id: uuid.UUID
 
 
-def _presented_token(request: Request) -> str | None:
-    header = request.headers.get("authorization", "")
-    scheme, _, token = header.partition(" ")
-    return token.strip() if scheme.lower() == "bearer" and token.strip() else None
-
-
 async def get_current_user(
-    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> CurrentUser:
-    token = _presented_token(request)
+    token = credentials.credentials.strip() if credentials else ""
     if not token:
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED,

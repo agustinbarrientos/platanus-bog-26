@@ -130,6 +130,11 @@ class Api {
 
   Future<Map<String, dynamic>> save(Map<String, dynamic> fields) async =>
       (await _send('PATCH', '/me', body: fields))!;
+
+  // Same thing with the id spelled out, if you prefer it at the call site.
+  // It must be your own id — the API answers 404 for anyone else's.
+  Future<Map<String, dynamic>> profile(String userId) async =>
+      (await _send('GET', '/profiles/$userId'))!;
 }
 ```
 
@@ -185,6 +190,14 @@ in `AndroidManifest.xml`, and iOS needs nothing as long as the API is https.
 | `PATCH /me` | token | Save any subset of the fields. Same response shape as `GET`. |
 | `DELETE /me` | token | Erase the health data, keep the account. |
 | `GET /health` | — | Liveness. Ping it before a demo to wake the instance. |
+
+The same three also answer at `/profiles/{user_id}`, if you would rather name
+the id in the URL — `GET /profiles/<id>` returns exactly what `GET /me`
+returns. The id must be the one in your token; anything else is a `404`, so it
+is a way of being explicit, not a way of reaching another user.
+
+`/me` is still the one to reach for. The token already says who is calling, so
+the app never has to store the id, pass it between screens, or get it wrong.
 
 Every `/me` response carries `answered`, `remaining`, `total` and `complete`
 alongside the profile, so the progress counter is computed server-side and

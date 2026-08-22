@@ -92,6 +92,14 @@ query must filter by `user_id` itself. That is the real access control.
 | `GET` | `/me` | Signed-in user + profile; creates the row on first sight |
 | `PATCH` | `/me` | Save any subset of the profile fields |
 | `DELETE` | `/me` | Erase this user's data |
+| `GET` `PATCH` `DELETE` | `/profiles/{user_id}` | The same three, with the id named in the URL |
+
+`/profiles/{user_id}` is a second door onto the same handlers for callers that
+prefer an explicit id. The id is checked against the token and a mismatch is a
+**404**, not a 403 — a 403 would confirm the id belongs to a real account,
+which is a membership check anyone could run against a list of guessed ids.
+Trusting the id instead would mean any valid token could read or overwrite any
+user's medical record by changing a number in the URL.
 
 `PATCH /me` is partial by design: the intake form saves one answer at a time
 and a user who abandons at question three must be able to resume. Sending
