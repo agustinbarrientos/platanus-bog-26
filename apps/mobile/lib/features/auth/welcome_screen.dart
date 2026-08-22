@@ -35,6 +35,16 @@ class WelcomeScreen extends StatelessWidget {
                             .animate(delay: const Duration(milliseconds: 160))
                             .fadeIn(duration: Motion.slow, curve: Motion.out)
                             .slideY(begin: .1, end: 0, duration: Motion.slow, curve: Motion.out),
+                        const SizedBox(height: Sp.x3),
+                        // Quién es, en una línea: la medusa que revierte su reloj celular.
+                        // La misma presentación que hace en el chat.
+                        Text(
+                          'La medusa que sabe devolver su reloj.',
+                          style: t.labelMedium!.copyWith(color: MoiraiColors.ink3, letterSpacing: .4),
+                          textAlign: TextAlign.center,
+                        )
+                            .animate(delay: const Duration(milliseconds: 220))
+                            .fadeIn(duration: Motion.slow, curve: Motion.out),
                         const SizedBox(height: Sp.x4),
                         ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 300),

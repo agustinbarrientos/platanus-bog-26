@@ -358,10 +358,30 @@ def _escenario_texto(
     return " ".join(partes)
 
 
+def _tiene_simulacion(resultado: Mapping[str, Any] | None) -> bool:
+    """A `resultado` that came through `ResultadoIn.model_dump()` is never an
+    empty dict — every field is present, just possibly `None`/empty, since
+    every field on that model is optional. `if resultado:` / `if not
+    resultado:` therefore never actually detects "no simulation yet": a
+    client sending `{"resultado": {}}` (a placeholder, an older client
+    build) still produces a truthy dict of all-`None` values, which would
+    otherwise make this fabricate the appearance of a real simulation with
+    dashes standing in for missing numbers — exactly what the system prompt
+    tells the model never to do. Only the substantive result fields count;
+    metadata alone (`id`, `creado_en`, `descargo`) does not."""
+    if not resultado:
+        return False
+    return bool(
+        resultado.get("edad_biologica_hoy") is not None
+        or resultado.get("escenarios")
+        or (resultado.get("trayectoria_baseline") or {}).get("anios")
+    )
+
+
 def result_chunks(resultado: Mapping[str, Any] | None) -> list[Chunk]:
     """Chunks for the simulation the user is looking at. Empty when the app
     has not sent one (no simulation yet, or an older client)."""
-    if not resultado:
+    if not _tiene_simulacion(resultado):
         return []
     out: list[Chunk] = []
     catalogo = {
@@ -559,7 +579,7 @@ def core_chunk(
         )
     else:
         partes.append("PhenoAge: aún no calculable (falta fecha de nacimiento o sexo en el perfil).")
-    if resultado:
+    if _tiene_simulacion(resultado):
         hoy_sim = _num(resultado.get("edad_biologica_hoy"))
         baseline = resultado.get("trayectoria_baseline") or {}
         anios = baseline.get("anios") or []

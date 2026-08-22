@@ -63,8 +63,14 @@ def phenoage_years(biomarcadores_formula_units: dict[str, float], edad: float) -
         _COEF[key] * value for key, value in biomarcadores_formula_units.items()
     ) + _COEF["age_years"] * edad
 
-    mortality_score = 1 - math.exp((_MORTALITY_SCALE * math.exp(xb)) / _GAMMA)
-    return (math.log(_BA_SCALE * math.log(1 - mortality_score)) / _BA_EXPONENT) + _BA_INTERCEPT
+    # The paper writes this in two steps: M = 1 - exp(k) and then ln(1 - M).
+    # Done literally that round-trips through a subtraction that saturates: for
+    # a badly-off profile exp(k) underflows, M becomes exactly 1.0, and
+    # ln(1 - M) = ln(0) raises. Since ln(1 - M) == k identically, skip M and use
+    # k directly — same value everywhere the two-step form is well-conditioned,
+    # and stable at the extremes Monte Carlo actually draws.
+    ln_1_minus_mortality = (_MORTALITY_SCALE * math.exp(xb)) / _GAMMA
+    return (math.log(_BA_SCALE * ln_1_minus_mortality) / _BA_EXPONENT) + _BA_INTERCEPT
 
 
 class PhenoAgeResult(NamedTuple):

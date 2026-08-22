@@ -283,6 +283,14 @@ _ENFOQUE_IDS: dict[str, tuple[str, ...]] = {
     "habitos": ("habitos", "kb:habitos"),
 }
 
+#: Flattened for membership checks below — `_ENFOQUE_IDS.values()` is an
+#: iterable of *tuples*, so `x not in _ENFOQUE_IDS.values()` never matches
+#: a plain string `x` and always evaluates true, which silently defeated the
+#: guard this set exists for. All of these are matched exactly anyway (every
+#: chunk id here is a real chunk, listed as its own tuple entry), so they
+#: never needed the substring fallback below in the first place.
+_ENFOQUE_IDS_FIJOS = {objetivo for objetivos in _ENFOQUE_IDS.values() for objetivo in objetivos}
+
 
 def _ids_enfocados(enfoque: str | None) -> tuple[str, ...]:
     e = normalize(enfoque or "").strip()
@@ -362,7 +370,12 @@ def retrieve(
         score = s * c.prioridad
         cid = normalize(c.id)
         for rank, objetivo in enumerate(enfocados):
-            if cid == objetivo or (objetivo not in _ENFOQUE_IDS.values() and objetivo in cid and len(enfocados) == 1):
+            # Beyond exact match, only a *prefix* match at a ":" boundary
+            # counts — plain `objetivo in cid` let "sim:escenario:1" match
+            # "sim:escenario:10".."19" too (a literal substring, digits and
+            # all), pinning unrelated scenarios whenever the app sends 10+.
+            libre = objetivo not in _ENFOQUE_IDS_FIJOS and len(enfocados) == 1
+            if cid == objetivo or (libre and cid.startswith(f"{objetivo}:")):
                 score += bonus if rank == 0 else bonus * 0.6
                 break
         if score > 0:
