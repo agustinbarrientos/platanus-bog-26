@@ -1,0 +1,112 @@
+/* Moirai — color primitives + semantic aliases.
+   Scoped to `.moirai` so they cannot collide with shadcn's own :root tokens. */
+.moirai {
+  /* Sky — primary brand blue: calm, clinical-adjacent but soft */
+  --sky-50: #eff8fe;
+  --sky-100: #dbeefb;
+  --sky-200: #b9def7;
+  --sky-300: #8ac7ef;
+  --sky-400: #52a9e2;
+  --sky-500: #2c8bcf;
+  --sky-600: #1e6ea9;
+  --sky-700: #1a5580;
+  /* Mint — secondary brand green: growth, "good" states */
+  --mint-50: #eefbf4;
+  --mint-100: #d6f5e5;
+  --mint-200: #aeeacb;
+  --mint-300: #7ed9ac;
+  --mint-400: #4cc48c;
+  --mint-500: #27a971;
+  --mint-600: #1b8659;
+  --mint-700: #176745;
+  /* Amber — attention, "keep an eye on it" */
+  --amber-50: #fff8e9;
+  --amber-100: #ffefc9;
+  --amber-200: #ffdf9b;
+  --amber-300: #ffcb63;
+  --amber-400: #f2ae2e;
+  --amber-500: #d08d0c;
+  --amber-600: #a56d00;
+  --amber-700: #7a5100;
+  /* Clay — highest-concern state. Deliberately a muted coral, never alarm red */
+  --clay-50: #fff2ef;
+  --clay-100: #ffe1d9;
+  --clay-200: #ffc3b4;
+  --clay-300: #ffa48f;
+  --clay-400: #f0785d;
+  --clay-500: #d65b41;
+  --clay-600: #ac4530;
+  --clay-700: #833225;
+  /* Neutrals — cool-tinted, never pure gray */
+  --n-0: #ffffff;
+  --n-25: #fafcfe;
+  --n-50: #f4f8fa;
+  --n-100: #e9eff3;
+  --n-200: #d7e0e7;
+  --n-300: #b5c2cc;
+  --n-400: #8d9ba8;
+  --n-500: #6c7a87;
+  --n-600: #4f5d69;
+  --n-700: #36424c;
+  --n-800: #232d35;
+  --n-900: #151c22;
+
+  /* Surfaces */
+  --surface-page: var(--n-25);
+  --surface-page-tint: var(--sky-50);
+  --surface-card: var(--n-0);
+  --surface-sunken: var(--n-50);
+  --surface-brand-soft: var(--sky-50);
+  --surface-brand: var(--sky-500);
+  --surface-good-soft: var(--mint-50);
+  --surface-watch-soft: var(--amber-50);
+  --surface-high-soft: var(--clay-50);
+  --surface-overlay: rgba(21, 28, 34, 0.44);
+  --surface-glass: rgba(255, 255, 255, 0.72);
+
+  /* Text */
+  --text-strong: var(--n-800);
+  --text-body: var(--n-700);
+  --text-muted: var(--n-500);
+  --text-faint: var(--n-400);
+  --text-inverse: var(--n-0);
+  --text-on-brand: var(--n-0);
+  --text-brand: var(--sky-600);
+  --text-good: var(--mint-600);
+  --text-watch: var(--amber-600);
+  --text-high: var(--clay-600);
+  --text-link: var(--sky-600);
+  --text-link-hover: var(--sky-700);
+
+  /* Borders */
+  --border-subtle: var(--n-100);
+  --border-default: var(--n-200);
+  --border-strong: var(--n-300);
+  --border-brand: var(--sky-200);
+
+  /* Health status ramp — the only ordered scale in the system */
+  --state-good: var(--mint-400);
+  --state-steady: var(--sky-400);
+  --state-watch: var(--amber-300);
+  --state-high: var(--clay-300);
+  --state-good-ink: var(--mint-600);
+  --state-steady-ink: var(--sky-600);
+  --state-watch-ink: var(--amber-600);
+  --state-high-ink: var(--clay-600);
+
+  /* Gradients — soft, low-contrast, always light-to-light */
+  --gradient-page: linear-gradient(
+    170deg,
+    var(--sky-50) 0%,
+    var(--sky-50) 18%,
+    var(--n-25) 72%,
+    var(--mint-50) 100%
+  );
+  --gradient-brand: linear-gradient(135deg, var(--sky-300) 0%, var(--sky-500) 100%);
+  --gradient-good: linear-gradient(135deg, var(--mint-100), var(--mint-50));
+  --gradient-protect-bottom: linear-gradient(
+    to top,
+    rgba(250, 252, 254, 1) 12%,
+    rgba(250, 252, 254, 0) 100%
+  );
+}
