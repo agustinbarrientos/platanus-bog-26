@@ -1,4 +1,4 @@
-/// Respuesta real de `GET/PATCH /me` del backend (ver `AUTH.md`).
+/// Respuesta de `GET/PATCH /me` (ver `apps/backend/API.md`).
 /// El backend calcula el progreso (`answered`/`remaining`/`total`), la app no.
 class Me {
   const Me({
@@ -27,27 +27,31 @@ class Me {
   );
 }
 
+/// `sex_at_birth`: el backend solo acepta "F" o "M".
 enum SexAtBirth {
-  female('female', 'Femenino'),
-  male('male', 'Masculino'),
-  intersex('intersex', 'Intersexual');
+  female('F', 'Femenino'),
+  male('M', 'Masculino');
 
   const SexAtBirth(this.api, this.label);
   final String api;
   final String label;
 
-  static SexAtBirth? fromApi(String? v) =>
-      v == null ? null : SexAtBirth.values.where((e) => e.api == v).firstOrNull;
+  static SexAtBirth? fromApi(String? v) {
+    if (v == null) return null;
+    final u = v.toUpperCase();
+    if (u == 'F' || u == 'FEMALE') return SexAtBirth.female;
+    if (u == 'M' || u == 'MALE') return SexAtBirth.male;
+    return null;
+  }
 
   /// Código de la spec §3 (`sexo_biologico`): "F" | "M".
-  String get specCode => this == SexAtBirth.male ? 'M' : 'F';
+  String get specCode => api;
 }
 
 const bloodTypes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
-/// Perfil tal como lo guarda el backend hoy (6 campos). El resto del
-/// onboarding (objetivos, historial, hábitos, suplementos…) vive en
-/// `OnboardingData` hasta que el backend lo acepte — ver `API_CONTRACT.md`.
+/// Perfil del backend (`/me`): 6 campos. El resto del onboarding va a
+/// `/me/health-context` (ver `OnboardingData`).
 class Profile {
   const Profile({
     this.userId,
@@ -108,5 +112,14 @@ class Profile {
     var a = now.year - d.year;
     if (now.month < d.month || (now.month == d.month && now.day < d.day)) a--;
     return a;
+  }
+
+  /// IMC a partir de estatura y peso (el backend lo acepta como biomarcador
+  /// `imc`, fuente "calculado").
+  double? get imc {
+    final h = heightCm, w = weightKg;
+    if (h == null || w == null || h <= 0) return null;
+    final m = h / 100;
+    return (w / (m * m) * 10).round() / 10;
   }
 }
