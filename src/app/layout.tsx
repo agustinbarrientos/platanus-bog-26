@@ -17,9 +17,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Hackathon Starter",
-  description:
-    "A focused Next.js foundation for turning a hackathon idea into a working product.",
+  title: "Team 37",
+  description: "Team 37 for the simulations track at Platanus Hack 26 Bogotá.",
 };
 
 export default function RootLayout({ children }: RootLayoutProps) {

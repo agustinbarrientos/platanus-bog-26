@@ -14,10 +14,9 @@ export type ThemeOption = {
   icon: LucideIcon;
 };
 
-export type Highlight = {
-  title: string;
-  description: string;
-  icon: LucideIcon;
+export type TeamMember = {
+  name: string;
+  githubUsername: string;
 };
 
 export type ErrorPageProps = {
