@@ -1,0 +1,442 @@
+"use client";
+
+import { bigCurves } from "@/lib/moirai/curves";
+import { formatEsCO } from "@/lib/moirai/format";
+import {
+  pickStage,
+  pinStyle,
+  shallowEqual,
+  type Stage,
+  useMoiraiScroll,
+} from "@/lib/moirai/scroll-store";
+
+/**
+ * "Tus biomarcadores, vividos diez mil veces" — the pinned engine scene.
+ *
+ * Scrolling through the section walks three views of the same simulation:
+ * the trajectories being drawn one by one, the distribution they collapse
+ * into, and the calibration curve that says how often the range was right.
+ * Tapping a pill hands control to that stage for a few seconds.
+ */
+
+const F = "var(--font-fredoka), system-ui, sans-serif";
+const clamp = (x: number) => Math.max(0, Math.min(1, x));
+
+const PILLS: { stage: Stage; label: string }[] = [
+  { stage: 1, label: "Diez mil trayectorias" },
+  { stage: 2, label: "Distribución" },
+  { stage: 3, label: "Calibración" },
+];
+
+const CAPTIONS: Record<Stage, (local: number) => string> = {
+  1: (l) =>
+    l < 0.45
+      ? "Cada trazo es una vida posible, avanzando año por año con tus biomarcadores."
+      : l < 0.8
+        ? "Un evento en 2031 cambia el estado y se arrastra hasta el final. Eso es la microsimulación."
+        : "Mediana de 68 años sin enfermedad crónica, con un rango de 61 a 75 que se muestra en vez de esconderse.",
+  2: (l) =>
+    l < 0.6
+      ? "Las diez mil vidas, ordenadas por cuándo aparece la primera enfermedad crónica."
+      : "El rango del 90% va de 61 a 75. Un número solo sería una mentira de precisión.",
+  3: (l) =>
+    l < 0.6
+      ? "Me probé contra 5.000 personas cuyo desenlace ya se conoce y que nunca vi al aprender."
+      : "Mientras más pegada esté la curva a la diagonal, mejor calibrado estoy. Aquí: 88%.",
+};
+
+const axisLabel = { fontWeight: 600, fontSize: 12 } as const;
+
+export function EngineSection() {
+  const { p, man, manLocal, pin } = useMoiraiScroll(
+    (s) => ({ p: s.p, man: s.man, manLocal: s.manLocal, pin: s.pin }),
+    shallowEqual,
+  );
+  const B = bigCurves();
+
+  // Manual picks replay a stage on their own clock; otherwise scroll drives it.
+  let stage: Stage;
+  let local: number;
+  if (man) {
+    stage = man.v;
+    local = manLocal;
+  } else if (p < 0.42) {
+    stage = 1;
+    local = Math.max(0.05, clamp(p / 0.4));
+  } else if (p < 0.71) {
+    stage = 2;
+    local = clamp((p - 0.42) / 0.26);
+  } else {
+    stage = 3;
+    local = clamp((p - 0.71) / 0.26);
+  }
+
+  const draw = stage === 1 ? local : 1;
+  const simulated = Math.round(draw * 10000);
+  const st = (a: number, b: number) => clamp((local - a) / (b - a));
+
+  return (
+    <section id="motor" className="mo-pin-sec" style={{ height: "520vh" }}>
+      <div
+        className="mo-pin-panel"
+        style={{ ...pinStyle(pin), gap: 16, padding: "80px 28px 24px" }}
+      >
+        <div className="mo-pin-panel__inner" style={{ gap: 16 }}>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 20, flexWrap: "wrap" }}>
+            <div className="mo-col" style={{ gap: 7 }}>
+              <h2 className="mo-h2" style={{ fontSize: 40, lineHeight: 1.1 }}>
+                Tus biomarcadores, vividos diez mil veces
+              </h2>
+              <p className="mo-lede" style={{ fontSize: 15.5, lineHeight: 1.55, maxWidth: 600 }}>
+                Diez mil vidas avanzan año por año con tus números, y cada evento se arrastra hasta
+                el final. Después repito las mismas diez mil cambiando una sola cosa: esa diferencia
+                es tu respuesta.
+              </p>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+              <div
+                className="mo-tnum"
+                style={{ fontFamily: F, fontWeight: 600, fontSize: 50, lineHeight: 1, color: "#1E6EA9" }}
+              >
+                {formatEsCO(simulated)}
+              </div>
+              <div
+                style={{ fontWeight: 700, fontSize: 11.5, letterSpacing: "0.05em", color: "#8D9BA8" }}
+              >
+                DE 10.000 VIDAS SIMULADAS
+              </div>
+              <div
+                style={{
+                  width: 190,
+                  height: 7,
+                  borderRadius: 4,
+                  background: "#E9EFF3",
+                  marginTop: 9,
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    height: 7,
+                    borderRadius: 4,
+                    background: "#2C8BCF",
+                    boxShadow: "0 0 10px rgba(44,139,207,.5)",
+                    width: `${(draw * 100).toFixed(1)}%`,
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="mo-stage-pills">
+            {PILLS.map((pill) => (
+              <button
+                key={pill.stage}
+                type="button"
+                onClick={() => pickStage(pill.stage)}
+                aria-pressed={stage === pill.stage}
+                className={`mo-stage-pill${stage === pill.stage ? " mo-stage-pill--on" : ""}`}
+              >
+                <span className="mo-stage-pill__idx">0{pill.stage}</span>
+                {pill.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="mo-card" style={{ padding: "20px 24px 12px" }}>
+            {stage === 1 && (
+              <svg viewBox="0 0 1040 412" style={{ width: "100%", display: "block" }}>
+                <g transform="translate(12,22)">
+                  {[90, 180, 270].map((y) => (
+                    <line key={y} x1={0} y1={y} x2={1016} y2={y} stroke="#F4F8FA" strokeWidth={1.4} />
+                  ))}
+                  <path d={B.band} fill="#52A9E2" opacity={(st(0.64, 0.76) * 0.18).toFixed(3)} />
+                  {B.lines.map((o, i) => {
+                    const lp = clamp((draw - (i / B.lines.length) * 0.8) / 0.2);
+                    const live = lp > 0.02 && lp < 0.999;
+                    return (
+                      <path
+                        key={i}
+                        d={o.d}
+                        fill="none"
+                        stroke={live ? "#2C8BCF" : "#8AC7EF"}
+                        strokeWidth={live ? 2.8 : 1.5}
+                        strokeLinecap="round"
+                        strokeDasharray={o.len.toFixed(0)}
+                        strokeDashoffset={(o.len * (1 - lp)).toFixed(0)}
+                        opacity={lp > 0 ? (live ? 0.8 : 0.3) : 0}
+                      />
+                    );
+                  })}
+                  {B.lines.map((o, i) => {
+                    const lp = clamp((draw - (i / B.lines.length) * 0.8) / 0.2);
+                    return (
+                      <circle
+                        key={i}
+                        cx={o.end[0].toFixed(1)}
+                        cy={o.end[1].toFixed(1)}
+                        r={3.4}
+                        fill="#8AC7EF"
+                        opacity={lp > 0.999 ? 0.4 : 0}
+                      />
+                    );
+                  })}
+                  <path
+                    d={B.med}
+                    fill="none"
+                    stroke="#1E6EA9"
+                    strokeWidth={3.4}
+                    strokeLinecap="round"
+                    strokeDasharray={B.medLen.toFixed(0)}
+                    strokeDashoffset={(B.medLen * (1 - st(0.68, 0.88))).toFixed(0)}
+                  />
+                  <line
+                    x1={B.markX}
+                    y1={0}
+                    x2={B.markX}
+                    y2={360}
+                    stroke="#1E6EA9"
+                    strokeWidth={1.6}
+                    strokeDasharray="4 6"
+                    opacity={st(0.9, 0.99).toFixed(2)}
+                  />
+                  <circle
+                    cx={B.markX}
+                    cy={B.markY}
+                    r={15}
+                    fill="#1E6EA9"
+                    opacity={(st(0.9, 0.99) * 0.22).toFixed(3)}
+                  />
+                  <circle cx={B.markX} cy={B.markY} r={7} fill="#1E6EA9" opacity={st(0.9, 0.99).toFixed(2)} />
+                </g>
+                <path d="M12 383 L1028 383" stroke="#E9EFF3" strokeWidth={1.6} />
+                <text x={12} y={18} fill="#B5C2CC" style={{ fontWeight: 700, fontSize: 11 }}>
+                  sin enfermedad crónica
+                </text>
+                <text x={12} y={376} fill="#B5C2CC" style={{ fontWeight: 700, fontSize: 11 }}>
+                  primer evento
+                </text>
+                <text x={12} y={404} fill="#8D9BA8" style={axisLabel}>
+                  42
+                </text>
+                <text x={266} y={404} fill="#8D9BA8" textAnchor="middle" style={axisLabel}>
+                  55
+                </text>
+                <text x={520} y={404} fill="#8D9BA8" textAnchor="middle" style={axisLabel}>
+                  68
+                </text>
+                <text x={774} y={404} fill="#8D9BA8" textAnchor="middle" style={axisLabel}>
+                  82
+                </text>
+                <text x={1028} y={404} fill="#8D9BA8" textAnchor="end" style={axisLabel}>
+                  96 años
+                </text>
+              </svg>
+            )}
+
+            {stage === 2 && (
+              <svg viewBox="0 0 1040 412" style={{ width: "100%", display: "block" }}>
+                <g transform="translate(12,22)">
+                  {B.bars.map((b, i) => {
+                    const grow = clamp((local - (i / B.bars.length) * 0.5) / 0.18);
+                    return (
+                      <rect
+                        key={i}
+                        x={b.x}
+                        y={(360 - b.h * grow).toFixed(1)}
+                        width={b.w}
+                        height={(b.h * grow).toFixed(1)}
+                        rx={7}
+                        fill="#8AC7EF"
+                      />
+                    );
+                  })}
+                  <line
+                    x1={B.x50}
+                    y1={0}
+                    x2={B.x50}
+                    y2={360}
+                    stroke="#1E6EA9"
+                    strokeWidth={3}
+                    opacity={st(0.66, 0.86).toFixed(2)}
+                  />
+                  {[B.x05, B.x95].map((x) => (
+                    <line
+                      key={x}
+                      x1={x}
+                      y1={40}
+                      x2={x}
+                      y2={360}
+                      stroke="#1E6EA9"
+                      strokeWidth={1.6}
+                      strokeDasharray="4 6"
+                      opacity={st(0.66, 0.86).toFixed(2)}
+                    />
+                  ))}
+                  <text
+                    x={B.x50}
+                    y={-4}
+                    fill="#1E6EA9"
+                    textAnchor="middle"
+                    style={{ fontFamily: F, fontWeight: 600, fontSize: 15 }}
+                    opacity={st(0.66, 0.86).toFixed(2)}
+                  >
+                    68
+                  </text>
+                  <text
+                    x={B.x05}
+                    y={30}
+                    fill="#8D9BA8"
+                    textAnchor="middle"
+                    style={{ fontWeight: 700, fontSize: 11.5 }}
+                    opacity={st(0.66, 0.86).toFixed(2)}
+                  >
+                    61
+                  </text>
+                  <text
+                    x={B.x95}
+                    y={30}
+                    fill="#8D9BA8"
+                    textAnchor="middle"
+                    style={{ fontWeight: 700, fontSize: 11.5 }}
+                    opacity={st(0.66, 0.86).toFixed(2)}
+                  >
+                    75
+                  </text>
+                </g>
+                <path d="M12 383 L1028 383" stroke="#E9EFF3" strokeWidth={1.6} />
+                <text x={12} y={404} fill="#8D9BA8" style={axisLabel}>
+                  52
+                </text>
+                <text x={520} y={404} fill="#8D9BA8" textAnchor="middle" style={axisLabel}>
+                  años sin enfermedad crónica · mediana 68, rango del 90% entre 61 y 75
+                </text>
+                <text x={1028} y={404} fill="#8D9BA8" textAnchor="end" style={axisLabel}>
+                  92 años
+                </text>
+              </svg>
+            )}
+
+            {stage === 3 && (
+              <div
+                style={{ display: "flex", gap: 34, alignItems: "center", flexWrap: "wrap", width: "100%" }}
+              >
+                <svg
+                  viewBox="326 10 388 400"
+                  preserveAspectRatio="xMidYMid meet"
+                  style={{
+                    flex: "1 1 300px",
+                    minWidth: 0,
+                    width: "100%",
+                    height: "auto",
+                    aspectRatio: "388/400",
+                    maxHeight: "52vh",
+                    display: "block",
+                  }}
+                >
+                  <g transform="translate(12,22)">
+                    <rect x={338} y={8} width={340} height={340} rx={18} fill="#F4F8FA" />
+                    {[93, 178, 263].map((y) => (
+                      <line key={y} x1={338} y1={y} x2={678} y2={y} stroke="#FFFFFF" strokeWidth={1.6} />
+                    ))}
+                    {[423, 508, 593].map((x) => (
+                      <line key={x} x1={x} y1={8} x2={x} y2={348} stroke="#FFFFFF" strokeWidth={1.6} />
+                    ))}
+                    <line
+                      x1={338}
+                      y1={348}
+                      x2={678}
+                      y2={8}
+                      stroke="#8D9BA8"
+                      strokeWidth={2}
+                      strokeDasharray="6 6"
+                      opacity={clamp(local / 0.18).toFixed(2)}
+                    />
+                    <path
+                      d={B.cal.d}
+                      fill="none"
+                      stroke="#1E6EA9"
+                      strokeWidth={3.2}
+                      strokeLinecap="round"
+                      strokeDasharray={B.cal.len}
+                      strokeDashoffset={(B.cal.len * (1 - clamp((local - 0.15) / 0.6))).toFixed(0)}
+                    />
+                    {B.cal.pts.map((q) => (
+                      <circle
+                        key={q.i}
+                        cx={q.cx}
+                        cy={q.cy}
+                        r={5.5}
+                        fill="#FFFFFF"
+                        stroke="#1E6EA9"
+                        strokeWidth={2.6}
+                        opacity={clamp((local - 0.4 - q.i * 0.05) / 0.12).toFixed(2)}
+                      />
+                    ))}
+                    <text
+                      x={508}
+                      y={372}
+                      fill="#8D9BA8"
+                      textAnchor="middle"
+                      style={{ fontWeight: 700, fontSize: 12 }}
+                    >
+                      lo que predije
+                    </text>
+                    <text
+                      x={322}
+                      y={178}
+                      fill="#8D9BA8"
+                      textAnchor="middle"
+                      transform="rotate(-90 322 178)"
+                      style={{ fontWeight: 700, fontSize: 12 }}
+                    >
+                      lo que pasó
+                    </text>
+                  </g>
+                </svg>
+                <div
+                  style={{
+                    flex: "0 0 336px",
+                    minWidth: 0,
+                    maxWidth: "100%",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 12,
+                    opacity: clamp((local - 0.72) / 0.2).toFixed(2),
+                    transition: "opacity .5s ease",
+                  }}
+                >
+                  <div style={{ fontFamily: F, fontWeight: 600, fontSize: 64, lineHeight: 1, color: "#1E6EA9" }}>
+                    88%
+                  </div>
+                  <div style={{ fontWeight: 700, fontSize: 15, lineHeight: 1.45, color: "#4F5D69", maxWidth: 340 }}>
+                    de las veces mi rango del 90% contuvo el resultado real
+                  </div>
+                  <div style={{ fontWeight: 600, fontSize: 13.5, lineHeight: 1.5, color: "#8D9BA8", maxWidth: 340 }}>
+                    5.000 personas con desenlace conocido, que nunca vi mientras aprendía.
+                  </div>
+                  <div style={{ fontWeight: 600, fontSize: 13.5, lineHeight: 1.5, color: "#8D9BA8", maxWidth: 340 }}>
+                    Estar calibrado no es adivinarte a ti: por eso comparo tus escenarios entre sí.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div
+              style={{
+                height: 26,
+                marginTop: 2,
+                textAlign: "center",
+                fontWeight: 600,
+                fontSize: 14.5,
+                color: "#4F5D69",
+              }}
+            >
+              {CAPTIONS[stage](local)}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
