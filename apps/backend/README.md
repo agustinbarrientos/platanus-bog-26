@@ -18,6 +18,10 @@ uvicorn app.main:app --reload
 No `.env` is needed to boot — every setting has a working default. Copy
 `.env.example` to `.env` when you want to override one.
 
+**Building a frontend against this API?** Read [`API.md`](API.md) — every
+endpoint, request/response shape, error format, and enum table, kept in
+sync with the routers on every change.
+
 ## Database (Supabase)
 
 1. Run `schema.sql` in the Supabase SQL editor, or `python scripts/apply_schema.py`.
