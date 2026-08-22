@@ -179,7 +179,7 @@ class _VoiRow extends StatelessWidget {
             children: [
               if (primera) const MoBadge('La que más me falta ahora mismo', tone: MoTone.brand, icon: Icons.star_rounded),
               if (def?.nucleo ?? false) const MoBadge('núcleo PhenoAge'),
-              if (def != null) MoBadge(def.unidad),
+              if (def != null) MoBadge(BiomarcadorDef.unidadBonita(def.unidad)),
             ],
           ),
         ],

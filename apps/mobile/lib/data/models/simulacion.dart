@@ -230,6 +230,24 @@ class SimulacionResultado {
     'biomarcadores_usados': biomarcadoresUsados.map((e) => e.toJson()).toList(),
   };
 
+  /// Versión compacta para el chat (`POST /me/health-context/chat`, campo
+  /// `resultado`): lo mismo que [toJson] sin `muestra_trayectorias` (el
+  /// grueso del payload, que el agente nunca lee) y con las curvas a un
+  /// decimal. Queda en unos pocos KB.
+  Map<String, dynamic> toChatJson() {
+    final j = toJson()..remove('muestra_trayectorias');
+    j['trayectoria_baseline'] = _curvaCompacta(baseline);
+    j['escenarios'] = [for (final e in escenarios) e.toJson()..['curva'] = _curvaCompacta(e.curva)];
+    return j;
+  }
+
+  static Map<String, dynamic> _curvaCompacta(Curva c) => {
+    'anios': c.anios,
+    'mediana': [for (final v in c.mediana) (v * 10).round() / 10],
+    'p10': [for (final v in c.p10) (v * 10).round() / 10],
+    'p90': [for (final v in c.p90) (v * 10).round() / 10],
+  };
+
   factory SimulacionResultado.fromJson(Map<String, dynamic> j) {
     final escenarios = ((j['escenarios'] as List?) ?? const [])
         .map((e) => Escenario.fromJson((e as Map).cast<String, dynamic>()))

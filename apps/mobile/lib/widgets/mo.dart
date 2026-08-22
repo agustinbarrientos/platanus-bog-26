@@ -387,5 +387,9 @@ IconData iconoIntervencion(String id) => switch (id) {
   'dejar_alcohol' => Icons.no_drinks_rounded,
   'dieta_mejor' => Icons.restaurant_rounded,
   'reducir_estres' => Icons.self_improvement_rounded,
+  'ejercicio_aerobico' => Icons.directions_run_rounded,
+  'dieta_mediterranea' => Icons.restaurant_rounded,
+  'cesacion_tabaco' => Icons.smoke_free_rounded,
+  'combinada' => Icons.auto_awesome_rounded,
   _ => Icons.spa_rounded,
 };

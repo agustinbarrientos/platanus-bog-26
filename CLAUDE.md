@@ -6,20 +6,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Moirai / "Diez Mil Futuros"** — proyecto del team-37 para Platanus Hack 26 Bogotá (track *Simulations*). Una app móvil que toma pocos datos de una persona (≈8 básicos + exámenes opcionales), corre una microsimulación Monte Carlo de su salud futura y devuelve **una** recomendación protagonista: qué palanca (hábito) gana más años sanos por unidad de esfuerzo, con su rango de incertidumbre y el porqué.
 
-Tres documentos son la fuente de verdad, en este orden de precedencia cuando se contradicen (y se contradicen — ver "Decisiones abiertas"):
+Tres documentos son la fuente de verdad, en este orden de precedencia cuando se contradicen (y se contradicen — ver "Decisiones tomadas"):
 
 1. [MOIRAI_ENGINE_SPEC.md](MOIRAI_ENGINE_SPEC.md) — el motor (3 capas + esquemas JSON de input/output + orden de construcción + lo que NO se hace). Léelo completo antes de tocar el backend.
 2. `screens.zip` (mockups más recientes, 16 pantallas, canvas "Diez Mil Futuros") + [design/](design/) (misma canvas, versión anterior, con los scripts que la generan y las anotaciones de producto en [design/canvas.json](design/canvas.json)). Léelos antes de tocar UI.
 3. El design system dentro de `screens.zip` (`_ds/evara-health-design-system-*/readme.md` + `tokens/*.css`): voz, color, tipografía, motion.
 
-`AGENTS.md` es el boilerplate genérico de Platanus para `apps/web`; referencia `docs/superpowers/...` que **no existe** en este repo. Lo que dice sobre validación (`npm run check`, no commitear sin pedirlo) sigue aplicando.
+El backend real está documentado en [apps/backend/API.md](apps/backend/API.md) (leerlo antes de tocar cualquier llamada de red); [API_CONTRACT.md](API_CONTRACT.md) dice cómo la app usa cada endpoint y qué sigue resuelto en local. `AUTH.md` está obsoleto (era el flujo Supabase). No commitear/pushear sin que lo pidan.
 
 ## Layout del monorepo
 
 ```
 apps/web/       Next.js 16 + Tailwind 4 + shadcn (starter de Platanus, npm workspace @team-37/web). Deploy Vercel.
-apps/backend/   FastAPI (Python). Deploy Render vía /render.yaml (rootDir apps/backend). Aquí vive el motor.
-apps/mobile/    Flutter app (vacío hoy; es el frontend principal del producto).
+apps/backend/   FastAPI (Python) + Postgres (Supabase). Deploy Render vía /render.yaml (rootDir apps/backend). Aquí vive el motor; contrato en apps/backend/API.md.
+apps/mobile/    Flutter app (el frontend del producto; ver su README.md).
 design/         Generadores de los artboards (.dc.html) + tokens. No es código de producto.
 ```
 
@@ -39,19 +39,20 @@ uvicorn app.main:app --reload          # http://localhost:8000 · /docs · /heal
 - Nuevo endpoint: `app/routers/<x>.py` con `APIRouter` + `app.include_router(...)` en `app/main.py`.
 - Nuevo secreto/config: campo en `Settings` (`app/config.py`), env var en Render. Todo tiene default; no hace falta `.env` para arrancar.
 - `/health` debe seguir sin dependencias (Render lo usa para decidir si el deploy pasó). Bind a `$PORT` en producción.
-- `routers/items.py` es CRUD de ejemplo en memoria — borrar cuando existan endpoints reales.
-- No hay tests aún. Cuando se agreguen: `pytest` (agregar a `requirements.txt`); test individual `pytest tests/test_x.py::test_y`.
+- Routers reales: `auth`, `profile` (`/me`), `health_context`, `lab_upload` (extracción con Claude), `biological_age` (`/phenoage`, `/montecarlo`), `health_chat` (`/chat`: Moirai con RAG léxico en `app/chat_rag/` — fragmentos por tema de los datos guardados + el `resultado` que manda la app + base de conocimiento derivada de las tablas del motor; BM25 + sinónimos en español, presupuesto de tokens, herramienta `buscar_mis_datos`; modelo en `CHAT_MODEL`). Cualquier cambio en un router se refleja en `API.md` en el mismo cambio.
+- Esquema SQL en `schema.sql` (`scripts/apply_schema.py`). Secretos: `DATABASE_URL`, `ANTHROPIC_API_KEY` (env en Render).
+- Tests: `pytest` desde `apps/backend` (`pytest.ini` pone `pythonpath=.`): `tests/test_chat_rag.py` (retriever/documentos/prompt) y `tests/test_health_chat_router.py` (el endpoint con DB y Anthropic falsos) — sin red ni base de datos. Un test: `pytest tests/test_chat_rag.py::test_x`.
 
 ### Mobile (`apps/mobile`, Flutter — el frontend del producto)
 - Flutter está en `~/.local/share/flutter` (clon `stable`, 3.47); **no está en el PATH del shell**: anteponer `export PATH="$HOME/.local/share/flutter/bin:$PATH" ANDROID_HOME="$HOME/Android/Sdk"` a cada comando. Android SDK en `~/Android/Sdk` (sin `cmdline-tools`, así que `flutter doctor --android-licenses` no corre; la licencia principal ya está aceptada).
 - `flutter pub get` · `flutter run` · `flutter analyze --no-pub` · `flutter test` · un test: `flutter test test/mock_engine_test.dart` · `flutter build apk --release` (el APK es lo que va en `deploy-url` de `platanus-hack-project.jsonc`).
-- Config en compilación (`--dart-define`): `API_BASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY` (defaults públicos de `AUTH.md`) y `USE_MOCK_ENGINE` (default `true`: simulación, OCR y wearables-sync corren con mocks locales; `false` pega a los endpoints de `API_CONTRACT.md`).
+- Config en compilación (`--dart-define`): `API_BASE_URL` (default https://platanus-bog-26.onrender.com) y `USE_MOCK_ENGINE` (default `false`; `true` = simulación, lectura de exámenes y chat con mocks locales para demo sin red).
 - Paleta exacta para Dart: `node design/tokens-hex.mjs` imprime las constantes `Color(0xFF…)` (ya copiadas en `lib/app/theme/tokens.dart`).
 
 Arquitectura de `apps/mobile/lib/` (Riverpod 2 con `Notifier`, go_router, Material 3):
-- `app/` — `theme/` (tokens + `MoiraiTheme`), `providers.dart` (todos los providers: sesión, `/me`, onboarding local, biomarcadores, `simulacionInputProvider` que arma el JSON de la spec §3, `simulationProvider` con estados `SimIdle/SimRunning/SimDone/SimFailed`), `router.dart` (`Routes` + redirect auth → onboarding → shell).
-- `data/` — `api/api_client.dart` (única puerta al backend, mete el JWT de Supabase en cada request), `models/` (espejo de spec §3/§8 y del `/me` real), `repositories/` (auth Supabase, perfil, exámenes, simulación, wearables con `health`), `mock/mock_engine.dart` (port en Dart de las 3 capas para demo sin backend; `test/mock_engine_test.dart` valida los invariantes de la spec §9).
-- `features/<flujo>/` — pantallas: `auth`, `onboarding`, `exams`, `simulation`, `future`, `levers`, `backing`, `profile`, `shell` (bottom nav Futuro · Simular · Respaldo · Perfil).
+- `app/` — `theme/` (tokens + `MoiraiTheme`), `providers.dart` (todos los providers: sesión vía `TokenStore`, `/me`, onboarding (local + sync a `/me/health-context`), biomarcadores (local + PATCH), `simulacionInputProvider` que arma el JSON de la spec §3, `simulationProvider` con estados `SimIdle/SimRunning/SimDone/SimFailed`), `router.dart` (`Routes` + redirect auth → onboarding → shell; `/chat` fuera del shell).
+- `data/` — `api/api_client.dart` (única puerta al backend, `Authorization: Bearer` del token propio; 401 → cierra sesión) + `api/token_store.dart` (flutter_secure_storage), `models/` (espejo de spec §3/§8, `/me`, chat), `repositories/` (auth backend, perfil + health-context, exámenes vía `/biomarkers/extract`, simulación = `/phenoage` + `/montecarlo` adaptados a la forma de la spec §8, chat, wearables con `health`), `mock/mock_engine.dart` (port en Dart de las 3 capas para demo sin backend; `test/mock_engine_test.dart` valida los invariantes de la spec §9).
+- `features/<flujo>/` — pantallas: `auth`, `onboarding`, `exams`, `simulation`, `future`, `levers`, `backing`, `profile`, `chat` ("Pregúntame": agente del backend con RAG; manda el `resultado` compacto + `enfoque`, muestra `fuentes` bajo cada respuesta; se abre enfocado con `Routes.chatCon(enfoque:, pregunta:)` desde el detalle de una palanca y desde "Por qué"), `shell` (bottom nav Futuro · Simular · Respaldo · Perfil).
 - `widgets/` — piezas compartidas: `mo.dart` (MoScreen/MoCard/MoChoice/MoPrimaryButton/…), `mascot.dart` (mascota animada en código), `big_number.dart` (count-up), `fan_chart.dart` (abanico P10–P90 + trayectorias, `CustomPainter`), `lever_card.dart`.
 
 ### Design (`design/`)
@@ -65,7 +66,7 @@ Tres capas apiladas, nunca mezcladas (spec §2):
 2. **Motor de evolución**: deriva anual por biomarcador + efecto de cada intervención → estado(t+1). Coeficientes aproximados pero citables de literatura; nunca inventados-y-presentados-como-verdad.
 3. **Monte Carlo**: corre la capa 2 N veces con ruido → mediana/P10/P90 por año. Biomarcadores imputados (medianas NHANES) ⇒ más sigma ⇒ banda más ancha. Luego barrido de combinaciones de 1–3 intervenciones rankeadas por años ganados / esfuerzo, y SHAP solo sobre el estado basal.
 
-Contrato: `POST /simular` recibe el JSON de input (spec §3) y devuelve el output (spec §8). Construir en el orden de spec §11 y validar cada capa con el caso de prueba de §9 antes de seguir. Siempre debe existir un **caso demo precargado** — nunca depender de upload/OCR en vivo durante el pitch.
+En el backend real esto vive en `app/health_metrics/` (`phenoage.py`, `interventions.py`, `montecarlo.py`, `nhanes_reference.py`) y se expone como `POST /me/health-context/phenoage` + `POST /me/health-context/montecarlo` (percentiles al horizonte por escenario; todavía no devuelve curvas por año ni SHAP — la app los aproxima, ver API_CONTRACT.md). La spec §3/§8 sigue siendo la forma objetivo del resultado; validar cada capa con el caso de prueba de §9. Siempre debe existir un **caso demo precargado** — nunca depender de upload/OCR en vivo durante el pitch.
 
 Lo que explícitamente NO se construye (spec §12): foto envejecida, dieta/suplementos/alergias, genética, >3 intervenciones simultáneas, SHAP sobre las 5000 trayectorias.
 
@@ -91,7 +92,7 @@ Lo que explícitamente NO se construye (spec §12): foto envejecida, dieta/suple
 
 - **La spec manda; los mockups son guía.** Cuando `screens.zip` y `MOIRAI_ENGINE_SPEC.md` se contradicen (métrica protagonista, biomarcadores, palancas, calibración), se sigue la spec: edad biológica PhenoAge proyectada a 10 años, 9 biomarcadores (6 núcleo + imputados), intervenciones y esquemas JSON de §3/§8. De los mockups se toma el flujo de pantallas, la voz, el color y las animaciones.
 - **Frontend = app Flutter**, Material Design (Material 3), con el mismo acabado en Android e iOS. Animaciones y vistas son parte del producto, no decoración.
-- **Auth directa con el SDK de Supabase** en la app (registro/login; ver `AUTH.md`); el backend solo verifica el JWT. **Datos y persistencia vía el backend** (`apps/backend`, FastAPI + Supabase), desplegado aparte en https://platanus-bog-26.onrender.com (docs en `/docs`; free tier: la primera request tras 15 min tarda 30–50 s, pegarle a `/health` antes de un demo). Hoy solo existen `/health` y `/me`; el resto está en [API_CONTRACT.md](API_CONTRACT.md) y la app lo consume con mocks hasta que exista.
+- **Auth propia del backend** (`/auth/*`, token opaco de 90 días guardado en keychain; Supabase es solo el Postgres). **Datos vía el backend** (`apps/backend`, FastAPI), desplegado aparte en https://platanus-bog-26.onrender.com (docs en `/docs`; free tier: la primera request tras 15 min tarda 30–50 s, pegarle a `/health` antes de un demo). Endpoints reales: `/me`, `/me/health-context` (+ `/biomarkers/extract` con Claude), `/phenoage`, `/montecarlo`, `/chat` (claude-haiku-4-5). Lo que el backend aún no expone (curvas por año, SHAP, historial, plan, foto/genética, wearables) la app lo resuelve en local — lista en [API_CONTRACT.md](API_CONTRACT.md).
 - Onboarding tras registro: peso, edad, demografía, nacionalidad, historial familiar, objetivos (energía, prevención, longevidad, fertilidad…), suplementos, wearables (Health Connect / HealthKit vía paquete `health`; sin OAuth de terceros), alcohol y alimentación, foto opcional y prueba genética en PDF opcional (se guarda; el análisis con AI/RAG es Fase 2).
 - La mascota se llama **Moirai** (nombre de `screens.zip`, el más reciente); "Tino" en `design/` es la versión vieja.
 - OCR de exámenes: mock en la app (`/examenes/extraer` en el contrato) hasta que el back lo implemente.

@@ -3,14 +3,15 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/api/api_client.dart';
+import '../data/api/token_store.dart';
 import '../data/models/biomarcador.dart';
 import '../data/models/me.dart';
 import '../data/models/onboarding.dart';
 import '../data/models/simulacion.dart';
 import '../data/repositories/auth_repository.dart';
+import '../data/repositories/chat_repository.dart';
 import '../data/repositories/demo_data.dart';
 import '../data/repositories/exams_repository.dart';
 import '../data/repositories/profile_repository.dart';
@@ -19,36 +20,42 @@ import '../data/repositories/wearables_repository.dart';
 
 // ── Infraestructura ──────────────────────────────────────────────────────
 final sharedPrefsProvider = Provider<SharedPreferences>((_) => throw UnimplementedError('override en main'));
-final supabaseProvider = Provider<SupabaseClient>((_) => Supabase.instance.client);
-final apiClientProvider = Provider<ApiClient>((_) => ApiClient());
+final tokenStoreProvider = Provider<TokenStore>((_) => throw UnimplementedError('override en main'));
 
-final authRepositoryProvider = Provider((ref) => AuthRepository(ref.watch(supabaseProvider)));
+final apiClientProvider = Provider<ApiClient>((ref) {
+  final api = ApiClient(ref.watch(tokenStoreProvider));
+  // Token revocado/vencido → cerrar sesión local (el router redirige).
+  api.onUnauthorized = () => ref.read(tokenStoreProvider).clear();
+  return api;
+});
+
+final authRepositoryProvider = Provider((ref) => AuthRepository(ref.watch(apiClientProvider), ref.watch(tokenStoreProvider)));
 final profileRepositoryProvider = Provider((ref) => ProfileRepository(ref.watch(apiClientProvider), ref.watch(sharedPrefsProvider)));
 final examsRepositoryProvider = Provider((ref) => ExamsRepository(ref.watch(apiClientProvider)));
 final simulationRepositoryProvider = Provider((ref) => SimulationRepository(ref.watch(apiClientProvider), ref.watch(sharedPrefsProvider)));
 final wearablesRepositoryProvider = Provider((ref) => WearablesRepository(ref.watch(apiClientProvider)));
+final chatRepositoryProvider = Provider((ref) => ChatRepository(ref.watch(apiClientProvider)));
 
 // ── Sesión ───────────────────────────────────────────────────────────────
-/// Notifica al router cuando cambia la sesión.
+/// Notifica al router cuando cambia la sesión (token guardado/borrado).
 class AuthNotifier extends ChangeNotifier {
-  AuthNotifier(this._repo) {
-    _sub = _repo.changes.listen((_) => notifyListeners());
+  AuthNotifier(this._tokens) {
+    _tokens.addListener(notifyListeners);
   }
-  final AuthRepository _repo;
-  late final StreamSubscription<AuthState> _sub;
+  final TokenStore _tokens;
 
-  bool get signedIn => _repo.signedIn;
-  String? get userId => _repo.user?.id;
-  String? get email => _repo.user?.email;
+  bool get signedIn => _tokens.hasSession;
+  String? get userId => _tokens.userId;
+  String? get email => _tokens.email;
 
   @override
   void dispose() {
-    _sub.cancel();
+    _tokens.removeListener(notifyListeners);
     super.dispose();
   }
 }
 
-final authNotifierProvider = ChangeNotifierProvider((ref) => AuthNotifier(ref.watch(authRepositoryProvider)));
+final authNotifierProvider = ChangeNotifierProvider((ref) => AuthNotifier(ref.watch(tokenStoreProvider)));
 final currentUserIdProvider = Provider<String?>((ref) => ref.watch(authNotifierProvider).userId);
 
 // ── /me ──────────────────────────────────────────────────────────────────
@@ -58,7 +65,7 @@ final meProvider = FutureProvider<Me>((ref) async {
   return ref.watch(profileRepositoryProvider).getMe();
 });
 
-// ── Onboarding extendido (local) ─────────────────────────────────────────
+// ── Onboarding extendido (local + sync a /me/health-context) ─────────────
 class OnboardingNotifier extends Notifier<OnboardingData> {
   @override
   OnboardingData build() {
@@ -67,19 +74,21 @@ class OnboardingNotifier extends Notifier<OnboardingData> {
     return ref.read(profileRepositoryProvider).loadOnboarding(uid);
   }
 
+  /// Guarda local de inmediato y sube al backend en segundo plano (best-effort).
   Future<void> update(OnboardingData Function(OnboardingData) fn) async {
     state = fn(state);
     final uid = ref.read(currentUserIdProvider);
     if (uid != null) await ref.read(profileRepositoryProvider).saveOnboarding(uid, state);
+    unawaited(ref.read(profileRepositoryProvider).syncOnboarding(state));
   }
 }
 
 final onboardingProvider = NotifierProvider<OnboardingNotifier, OnboardingData>(OnboardingNotifier.new);
 
-/// ¿Ya pasó por el onboarding? (perfil del backend completo + extras locales).
+/// ¿Ya pasó por el onboarding?
 final onboardingDoneProvider = Provider<bool>((ref) => ref.watch(onboardingProvider).completo);
 
-// ── Biomarcadores confirmados (local) ────────────────────────────────────
+// ── Biomarcadores confirmados (local + PATCH /me/health-context) ──────────
 class BiomarcadoresNotifier extends Notifier<List<Biomarcador>> {
   @override
   List<Biomarcador> build() {
@@ -88,10 +97,32 @@ class BiomarcadoresNotifier extends Notifier<List<Biomarcador>> {
     return ref.read(profileRepositoryProvider).loadBiomarcadores(uid);
   }
 
+  /// Reemplaza la lista (local + backend). Si el backend falla, queda local y
+  /// se reintenta en el próximo `set`.
   Future<void> set(List<Biomarcador> list) async {
     state = list;
     final uid = ref.read(currentUserIdProvider);
     if (uid != null) await ref.read(profileRepositoryProvider).saveBiomarcadores(uid, list);
+    try {
+      final perfil = ref.read(meProvider).asData?.value.profile;
+      await ref.read(profileRepositoryProvider).pushBiomarcadores(list, perfil: perfil);
+    } catch (_) {}
+  }
+
+  /// Trae lo que el backend tiene (p. ej. tras extraer un examen) y lo
+  /// mezcla con lo local por nombre (gana el backend).
+  Future<void> pullFromBackend() async {
+    try {
+      final remoto = await ref.read(profileRepositoryProvider).pullBiomarcadores();
+      if (remoto.isEmpty) return;
+      final map = {for (final b in state) b.nombre: b};
+      for (final b in remoto) {
+        map[b.nombre] = b.copyWith(fecha: map[b.nombre]?.fecha);
+      }
+      state = map.values.toList();
+      final uid = ref.read(currentUserIdProvider);
+      if (uid != null) await ref.read(profileRepositoryProvider).saveBiomarcadores(uid, state);
+    } catch (_) {}
   }
 }
 
@@ -100,7 +131,8 @@ final biomarcadoresProvider = NotifierProvider<BiomarcadoresNotifier, List<Bioma
 /// Lectura extraída, pendiente de confirmación (estado efímero entre pantallas).
 final lecturaPendienteProvider = StateProvider<List<Biomarcador>?>((_) => null);
 
-// ── Input de simulación (armado desde perfil + onboarding + biomarcadores) ─
+// ── Input de simulación (spec §3; el backend real lee lo suyo de /me y
+// /me/health-context, pero la app arma el JSON igual para el mock y el demo) ─
 final simulacionInputProvider = Provider<SimulacionInput>((ref) {
   final me = ref.watch(meProvider).asData?.value;
   final ob = ref.watch(onboardingProvider);
@@ -111,7 +143,7 @@ final simulacionInputProvider = Provider<SimulacionInput>((ref) {
     // Sin perfil todavía: caso demo (red de seguridad, spec §11 paso 9).
     return DemoData.perfil();
   }
-  final faltantes = BiomarcadorDef.all.map((d) => d.id).where((id) => !bms.any((b) => b.nombre == id)).toList();
+  final faltantes = BiomarcadorDef.phenoAgeDefs.map((d) => d.id).where((id) => !bms.any((b) => b.nombre == id)).toList();
   return SimulacionInput(
     demografia: {
       'edad': edad,
@@ -134,8 +166,8 @@ final simulacionInputProvider = Provider<SimulacionInput>((ref) {
     notasIncertidumbre: faltantes.isEmpty
         ? null
         : bms.isEmpty
-            ? 'Sin exámenes: los 9 biomarcadores se imputan de medianas NHANES por edad/sexo; la banda es la más ancha posible.'
-            : '${faltantes.length} biomarcadores imputados de medianas NHANES por edad/sexo',
+            ? 'Sin exámenes: los 9 biomarcadores se imputan de medianas por edad/sexo; la banda es la más ancha posible.'
+            : '${faltantes.length} biomarcadores imputados de medianas por edad/sexo',
   );
 });
 

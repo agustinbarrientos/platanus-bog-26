@@ -70,6 +70,13 @@ class FutureEmptyState extends ConsumerWidget {
               child: const Text('Probar con un caso de ejemplo'),
             ),
           ).stagger(4),
+          Center(
+            child: TextButton.icon(
+              onPressed: () => context.push(Routes.chat),
+              icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+              label: const Text('Pregúntale a Moirai'),
+            ),
+          ).stagger(5),
         ],
         const SizedBox(height: Sp.x6),
         const MoFootnote('No te voy a pedir nada que no necesite.'),

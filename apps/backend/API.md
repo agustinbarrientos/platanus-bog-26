@@ -404,18 +404,42 @@ medians; the p10–p90 band is what a UI should render as the "fan of futures."
 ## Chat agent (`/me/health-context/chat`)
 
 ### `POST /me/health-context/chat` → `200`
-An LLM (`claude-haiku-4-5`) grounded in exactly the caller's own stored
-`/me` + `/me/health-context` data (including a freshly computed PhenoAge, if
-enough is on file) — no other data source, no tools. Stateless: send the
+Moirai (the app's mascot, first person singular) answering about the
+caller's own stored data, a freshly computed PhenoAge **and the simulation
+result the app sends** — grounded by retrieval, not by pasting everything into
+the prompt. The model (`CHAT_MODEL`, default `claude-haiku-4-5`) only sees the
+handful of fragments that match the question plus an always-on card with the
+headline numbers, and may call one tool (`buscar_mis_datos`) to fetch more
+when the first pass missed something (max 2 rounds). Stateless: send the
 conversation back each turn.
 ```json
 // request
 {
-  "message": "¿qué significa que mi PhenoAge sea distinto a mi edad cronológica?",
-  "history": []   // optional; pass back what the previous response returned here
+  "message": "¿Por qué el ejercicio es mi primera palanca?",
+  "history": [],              // optional; pass back what the previous response returned here
+  "enfoque": "escenario:0",   // optional; where in the app the chat was opened from
+  "resultado": { "...": "SimulacionResultado.toChatJson() — spec §8 shape, see below" }
 }
 ```
-- `message`: 1–4000 chars. `history`: max 40 entries, each `{"role": "user"|"assistant", "content": "..."}`.
+- `message`: 1–4000 chars. `history`: max 40 entries, each
+  `{"role": "user"|"assistant", "content": "..."}` (`extra="forbid"`).
+- `enfoque` (optional, ≤ 80 chars): biases retrieval and pins the matching
+  fragment first. Values the app uses: `escenario:<índice>` (a lever; index
+  into `resultado.escenarios`), `porque`, `incertidumbre`, `biomarcador:<nombre>`,
+  `medir`, `poblacion`. Anything else is matched as a substring of fragment ids.
+- `resultado` (optional): the spec §8 JSON as the app holds it — `id`,
+  `creado_en`, `edad_cronologica`, `edad_biologica_hoy`,
+  `trayectoria_baseline {anios, mediana, p10, p90}`, `mejor_decision`,
+  `veredicto_gemelo`, `porque`, `shap_top_drivers[]`, `comparacion_poblacional`,
+  `incertidumbre`, `descargo`, `escenarios[] {intervenciones, etiqueta,
+  anios_ganados, rango, esfuerzo, ratio_impacto_esfuerzo,
+  pct_futuros_que_mejoran, curva}`, `intervenciones_catalogo[]`,
+  `biomarcadores_usados[]`. **The one body in this API with `extra="ignore"`:**
+  unknown keys are dropped, not 422 — the app assembles part of this locally
+  (see API_CONTRACT.md) and its shape moves faster than the API. Do **not**
+  send `muestra_trayectorias`: it is most of the payload and is never read.
+  Without `resultado` the chat still answers about stored data, PhenoAge and
+  how the engine works, and says there is no simulation to talk about.
 ```json
 // response
 {
@@ -423,11 +447,37 @@ conversation back each turn.
   "history": [
     {"role": "user", "content": "..."},
     {"role": "assistant", "content": "..."}
+  ],
+  "fuentes": [
+    {"id": "sim:mejor_decision", "titulo": "Tu mejor palanca", "grupo": "resultado"},
+    {"id": "kb:intervencion:ejercicio_aerobico", "titulo": "Palanca: Ejercicio aeróbico regular", "grupo": "conocimiento"}
   ]
 }
 ```
-Pass the returned `history` straight back as the request's `history` on the
-next call to continue the same conversation.
+- `history`: pass it straight back as the request's `history` on the next
+  call. Plain text only — tool calls never leak into it.
+- `fuentes`: the fragments the answer was grounded in, in the order shown to
+  the model (initial retrieval, then anything fetched with the tool). `grupo`
+  is `usuario` (stored data — ids `perfil`, `habitos`, `historia_familiar`,
+  `objetivos`, `phenoage`, `faltantes`, `bio:<nombre>` for each of the 12
+  biomarkers, measured or not), `resultado` (`sim:resumen`,
+  `sim:mejor_decision`, `sim:escenario:<i>`, `sim:baseline`, `sim:porque`,
+  `sim:poblacion`, `sim:incertidumbre`, `sim:catalogo`) or `conocimiento`
+  (`kb:*` — PhenoAge, the three layers, the P10–P90 band, imputation, what to
+  measure, effort/ratio, adherence, each biomarker, each intervention, limits,
+  where things are in the app). The app renders them as "Leí: …" under the
+  bubble. Empty only when nothing matched and nothing was fetched.
+
+**How retrieval works** (`app/chat_rag/`, no embeddings, no extra service):
+the user's data, the `resultado` and a static knowledge base built from the
+engine's own tables become ~60 short chunks; BM25 over accent-stripped
+Spanish stems plus a synonym map (`azúcar`→glucosa, `fumar`→tabaco,
+`rango`→incertidumbre…) scores them, the previous user turn counts at lower
+weight (so "¿y por qué?" keeps its topic), `enfoque` pins its fragment first,
+a diversity penalty keeps one family from crowding out the rest, and a
+~1.600-token budget caps the prompt. Greetings with no keywords fall back to
+the overview fragments. Net effect: ~2.500 input tokens per turn instead of
+the ~8–10k a full dump of data + result + knowledge would cost.
 
 **Errors specific to this endpoint** (still the `{"detail": "..."}` shape):
 - `503` — `ANTHROPIC_API_KEY` isn't set on this deployment, or the agent is unreachable.

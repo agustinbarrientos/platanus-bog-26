@@ -21,7 +21,7 @@ abstract final class DemoData {
       Biomarcador(nombre: 'glucosa', valor: 92, unidad: 'mg/dL', fecha: '2026-07', fuente: 'documento'),
       Biomarcador(nombre: 'hs_CRP', valor: 2.1, unidad: 'mg/L', fecha: '2026-07', fuente: 'documento'),
       Biomarcador(nombre: 'rdw', valor: 13.1, unidad: '%', fecha: '2026-07', fuente: 'documento'),
-      Biomarcador(nombre: 'leucocitos', valor: 6.2, unidad: '10³/µL', fecha: '2026-07', fuente: 'documento'),
+      Biomarcador(nombre: 'leucocitos', valor: 6.2, unidad: '10^3/uL', fecha: '2026-07', fuente: 'documento'),
     ],
     habitos: const {
       'sueno_h': 6,
@@ -43,6 +43,6 @@ abstract final class DemoData {
     Biomarcador(nombre: 'glucosa', valor: 92, unidad: 'mg/dL', fecha: '2026-07', fuente: 'documento', confianza: 'alta'),
     Biomarcador(nombre: 'hs_CRP', valor: 2.1, unidad: 'mg/L', fecha: '2026-07', fuente: 'documento', confianza: 'media'),
     Biomarcador(nombre: 'rdw', valor: 13.1, unidad: '%', fecha: '2026-07', fuente: 'documento', confianza: 'baja'),
-    Biomarcador(nombre: 'leucocitos', valor: 6.2, unidad: '10³/µL', fecha: '2026-07', fuente: 'documento', confianza: 'alta'),
+    Biomarcador(nombre: 'leucocitos', valor: 6.2, unidad: '10^3/uL', fecha: '2026-07', fuente: 'documento', confianza: 'alta'),
   ];
 }

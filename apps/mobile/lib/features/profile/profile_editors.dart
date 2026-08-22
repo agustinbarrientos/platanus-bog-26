@@ -7,6 +7,7 @@ import '../../app/providers.dart';
 import '../../app/theme/tokens.dart';
 import '../../core/format.dart';
 import '../../data/api/api_client.dart';
+import '../../data/repositories/auth_repository.dart';
 import '../../data/models/me.dart';
 import '../../data/models/onboarding.dart';
 import '../../widgets/mo.dart';
@@ -322,6 +323,188 @@ class _GoalsFamilyEditorState extends ConsumerState<_GoalsFamilyEditor> {
         ],
         const SizedBox(height: Sp.x7),
         MoPrimaryButton(label: 'Guardar', loading: _saving, onPressed: _guardar),
+      ],
+    );
+  }
+}
+
+// ── Cuenta: contraseña y borrado (/auth/*) ───────────────────────────────
+
+/// Cambiar contraseña (actual + nueva ≥ 8). Devuelve `true` si se cambió.
+Future<bool?> changePasswordSheet(BuildContext context) {
+  return showMoSheet<bool>(
+    context,
+    title: 'Cambiar contraseña',
+    subtitle: 'Dime la actual y la nueva. Mínimo 8 caracteres.',
+    builder: (_) => const _PasswordEditor(),
+  );
+}
+
+class _PasswordEditor extends ConsumerStatefulWidget {
+  const _PasswordEditor();
+
+  @override
+  ConsumerState<_PasswordEditor> createState() => _PasswordEditorState();
+}
+
+class _PasswordEditorState extends ConsumerState<_PasswordEditor> {
+  final _actual = TextEditingController();
+  final _nueva = TextEditingController();
+  bool _ver = false;
+  bool _saving = false;
+  String? _aviso;
+
+  @override
+  void dispose() {
+    _actual.dispose();
+    _nueva.dispose();
+    super.dispose();
+  }
+
+  Future<void> _guardar() async {
+    if (_actual.text.isEmpty) {
+      setState(() => _aviso = 'Me falta tu contraseña actual.');
+      return;
+    }
+    if (_nueva.text.length < 8) {
+      setState(() => _aviso = 'La nueva contraseña necesita al menos 8 caracteres.');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _aviso = null;
+    });
+    try {
+      await ref.read(authRepositoryProvider).changePassword(current: _actual.text, nueva: _nueva.text);
+      if (mounted) Navigator.of(context).pop(true);
+    } on AuthFailure catch (e) {
+      if (mounted) setState(() => _aviso = e.message);
+    } catch (_) {
+      if (mounted) setState(() => _aviso = 'No pude cambiarla. ¿Tienes internet?');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ojo = IconButton(
+      tooltip: _ver ? 'Ocultar' : 'Mostrar',
+      onPressed: () => setState(() => _ver = !_ver),
+      icon: Icon(_ver ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextField(
+          controller: _actual,
+          autofocus: true,
+          obscureText: !_ver,
+          textInputAction: TextInputAction.next,
+          autofillHints: const [AutofillHints.password],
+          decoration: InputDecoration(labelText: 'Contraseña actual', prefixIcon: const Icon(Icons.lock_outline_rounded), suffixIcon: ojo),
+        ),
+        const SizedBox(height: Sp.stackCard),
+        TextField(
+          controller: _nueva,
+          obscureText: !_ver,
+          textInputAction: TextInputAction.done,
+          autofillHints: const [AutofillHints.newPassword],
+          onSubmitted: (_) => _guardar(),
+          decoration: const InputDecoration(
+            labelText: 'Contraseña nueva',
+            helperText: 'Mínimo 8 caracteres.',
+            prefixIcon: Icon(Icons.lock_reset_rounded),
+          ),
+        ),
+        if (_aviso != null) ...[
+          const SizedBox(height: Sp.x4),
+          MoNotice(text: _aviso!, tone: MoTone.watch, icon: Icons.info_outline_rounded),
+        ],
+        const SizedBox(height: Sp.x6),
+        MoPrimaryButton(label: 'Cambiar contraseña', loading: _saving, onPressed: _guardar),
+      ],
+    );
+  }
+}
+
+/// Borrar la cuenta (pide la contraseña). Devuelve `true` si el backend la
+/// borró; en ese momento la sesión local ya quedó limpia.
+Future<bool?> confirmDeleteAccount(BuildContext context) {
+  return showDialog<bool>(context: context, builder: (_) => const _DeleteAccountDialog());
+}
+
+class _DeleteAccountDialog extends ConsumerStatefulWidget {
+  const _DeleteAccountDialog();
+
+  @override
+  ConsumerState<_DeleteAccountDialog> createState() => _DeleteAccountDialogState();
+}
+
+class _DeleteAccountDialogState extends ConsumerState<_DeleteAccountDialog> {
+  final _password = TextEditingController();
+  bool _borrando = false;
+  String? _aviso;
+
+  @override
+  void dispose() {
+    _password.dispose();
+    super.dispose();
+  }
+
+  Future<void> _borrar() async {
+    if (_password.text.isEmpty) {
+      setState(() => _aviso = 'Necesito tu contraseña para confirmar.');
+      return;
+    }
+    setState(() {
+      _borrando = true;
+      _aviso = null;
+    });
+    try {
+      await ref.read(authRepositoryProvider).deleteAccount(password: _password.text);
+      if (mounted) Navigator.of(context).pop(true);
+    } on AuthFailure catch (e) {
+      if (mounted) setState(() => _aviso = e.message);
+    } catch (_) {
+      if (mounted) setState(() => _aviso = 'No pude borrar tu cuenta. ¿Tienes internet?');
+    } finally {
+      if (mounted) setState(() => _borrando = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    return AlertDialog(
+      title: const Text('¿Borro tu cuenta?'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Borro tu cuenta, tu perfil y tus simulaciones. Esto no se puede deshacer.', style: t.bodyMedium),
+          const SizedBox(height: Sp.x5),
+          TextField(
+            controller: _password,
+            autofocus: true,
+            obscureText: true,
+            autofillHints: const [AutofillHints.password],
+            onSubmitted: (_) => _borrar(),
+            decoration: const InputDecoration(labelText: 'Tu contraseña', prefixIcon: Icon(Icons.lock_outline_rounded)),
+          ),
+          if (_aviso != null) ...[
+            const SizedBox(height: Sp.x4),
+            MoNotice(text: _aviso!, tone: MoTone.watch, icon: Icons.info_outline_rounded),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: _borrando ? null : () => Navigator.of(context).pop(false), child: const Text('Mejor no')),
+        TextButton(
+          onPressed: _borrando ? null : _borrar,
+          style: TextButton.styleFrom(foregroundColor: MoiraiColors.amberInk),
+          child: Text(_borrando ? 'Borrando…' : 'Sí, borrar'),
+        ),
       ],
     );
   }

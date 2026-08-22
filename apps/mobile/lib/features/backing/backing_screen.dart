@@ -6,9 +6,9 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/theme/tokens.dart';
 import '../../core/env.dart';
-import '../../data/mock/mock_engine.dart';
 import '../../data/models/biomarcador.dart';
 import '../../data/models/simulacion.dart';
+import '../../data/repositories/simulation_repository.dart';
 import '../../widgets/fan_chart.dart';
 import '../../widgets/mo.dart';
 
@@ -128,14 +128,20 @@ class BackingScreen extends StatelessWidget {
 
         // ── Pie ──────────────────────────────────────────────────────────
         s(const MoFootnote('Estimación de riesgo poblacional, no diagnóstico. Consulta a un profesional para decisiones clínicas.')),
-        if (Env.useMockEngine) ...[
-          const SizedBox(height: Sp.x3),
-          s(Text(
-            'Motor v0.1 · mock en el dispositivo',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.labelSmall!.copyWith(letterSpacing: .4),
-          )),
-        ],
+        const SizedBox(height: Sp.x3),
+        s(Text(
+          Env.useMockEngine
+              ? 'Motor mock en el dispositivo'
+              : 'Motor v0.2 en el servidor · ${Uri.tryParse(Env.apiBaseUrl)?.host ?? Env.apiBaseUrl}',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.labelSmall!.copyWith(letterSpacing: .4),
+        )),
+        const SizedBox(height: Sp.x2),
+        s(Text(
+          'El chat y la lectura de exámenes usan claude-haiku-4-5.',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.labelSmall!.copyWith(letterSpacing: .4),
+        )),
       ],
     );
   }
@@ -257,7 +263,7 @@ class _DatosCard extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              for (final d in BiomarcadorDef.all)
+              for (final d in BiomarcadorDef.phenoAgeDefs)
                 MoBadge(
                   d.nombre,
                   tone: d.nucleo ? MoTone.brand : MoTone.sunken,
@@ -287,6 +293,38 @@ class _DatosCard extends StatelessWidget {
 
 // ── Palancas ─────────────────────────────────────────────────────────────
 
+/// Copia de `apps/backend/app/health_metrics/interventions.py` (DYNAMICS):
+/// deriva natural por año y ruido anual (SD) de cada biomarcador PhenoAge,
+/// en las unidades del backend. Mantener sincronizado a mano.
+const _dinamicaBackend = <String, ({double deriva, double ruido})>{
+  'hs_CRP': (deriva: 0.03, ruido: 0.6),
+  'glucosa': (deriva: 0.5, ruido: 4.0),
+  'albumina': (deriva: -0.01, ruido: 0.08),
+  'creatinina': (deriva: 0.005, ruido: 0.04),
+  'fosfatasa_alcalina': (deriva: 0.3, ruido: 4.0),
+  'linfocitos_pct': (deriva: -0.15, ruido: 1.5),
+  'vcm': (deriva: 0.1, ruido: 1.0),
+  'rdw': (deriva: 0.03, ruido: 0.3),
+  'leucocitos': (deriva: 0.01, ruido: 0.4),
+};
+
+/// Copia de `interventions.py` (SCENARIOS → efectos_anuales): cuánto suma cada
+/// escenario a la deriva natural, por biomarcador y por año.
+const _efectosBackend = <String, Map<String, double>>{
+  'ejercicio_aerobico': {'hs_CRP': -0.08, 'glucosa': -0.9, 'leucocitos': -0.03},
+  'dieta_mediterranea': {'hs_CRP': -0.06, 'glucosa': -0.6, 'albumina': 0.01},
+  'cesacion_tabaco': {'leucocitos': -0.15, 'hs_CRP': -0.10, 'vcm': -0.15},
+  'combinada': {'hs_CRP': -0.20, 'glucosa': -1.4, 'leucocitos': -0.16, 'albumina': 0.01, 'vcm': -0.10},
+};
+
+IconData _iconoEscenario(String id) => switch (id) {
+  'ejercicio_aerobico' => Icons.directions_walk_rounded,
+  'dieta_mediterranea' => Icons.restaurant_rounded,
+  'cesacion_tabaco' => Icons.smoke_free_rounded,
+  'combinada' => Icons.auto_awesome_rounded,
+  _ => Icons.spa_rounded,
+};
+
 class _PalancasCard extends StatelessWidget {
   const _PalancasCard();
 
@@ -299,6 +337,28 @@ class _PalancasCard extends StatelessWidget {
     return v > 0 ? '+$s' : '−$s';
   }
 
+  static String _esfuerzo(int e) => switch (e) { <= 2 => 'esfuerzo bajo', <= 4 => 'esfuerzo medio', _ => 'esfuerzo alto' };
+
+  Widget _fila(TextTheme t, String id, double v, {String? extra}) {
+    final def = BiomarcadorDef.byId(id);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          Expanded(child: Text(def?.nombre ?? id, style: t.bodyMedium)),
+          const SizedBox(width: Sp.x3),
+          Text(
+            '${_coef(v)} ${BiomarcadorDef.unidadBonita(def?.unidad ?? '')}/año${extra ?? ''}',
+            style: t.labelMedium!.copyWith(
+              color: v < 0 ? MoiraiColors.greenInk : MoiraiColors.amberInk,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context).textTheme;
@@ -307,42 +367,39 @@ class _PalancasCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (final interv in MockEngine.catalogo)
+          // Línea base: deriva natural + ruido, sin intervención.
+          _SinBordes(
+            child: ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              childrenPadding: const EdgeInsets.only(left: 54, bottom: Sp.x3),
+              leading: const MoIconTile(Icons.timeline_rounded, tone: MoTone.sunken, size: 40),
+              title: Text('Sin intervención (línea base)', style: t.titleMedium),
+              subtitle: Text('Deriva natural por año ± ruido anual, ${_dinamicaBackend.length} biomarcadores', style: t.bodySmall),
+              iconColor: MoiraiColors.ink2,
+              collapsedIconColor: MoiraiColors.ink3,
+              children: [
+                for (final e in _dinamicaBackend.entries) _fila(t, e.key, e.value.deriva, extra: ' (± ${_tres.format(e.value.ruido)})'),
+              ],
+            ),
+          ),
+          for (final e in SimulationRepository.escenariosBackend.entries)
             _SinBordes(
               child: ExpansionTile(
                 tilePadding: EdgeInsets.zero,
                 childrenPadding: const EdgeInsets.only(left: 54, bottom: Sp.x3),
-                leading: MoIconTile(iconoIntervencion(interv.id), size: 40),
-                title: Text(interv.etiqueta, style: t.titleMedium),
+                leading: MoIconTile(_iconoEscenario(e.key), size: 40),
+                title: Text(e.value.etiqueta, style: t.titleMedium),
                 subtitle: Text(
-                  '${MockEngine.efectoIntervencion[interv.id]?.length ?? 0} biomarcadores · ${interv.esfuerzoLabel}',
+                  '${_efectosBackend[e.key]?.length ?? 0} biomarcadores · ${_esfuerzo(e.value.esfuerzo)}',
                   style: t.bodySmall,
                 ),
                 iconColor: MoiraiColors.ink2,
                 collapsedIconColor: MoiraiColors.ink3,
-                children: [
-                  for (final e in (MockEngine.efectoIntervencion[interv.id] ?? const {}).entries)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 5),
-                      child: Row(
-                        children: [
-                          Expanded(child: Text(BiomarcadorDef.byId(e.key)?.nombre ?? e.key, style: t.bodyMedium)),
-                          const SizedBox(width: Sp.x3),
-                          Text(
-                            '${_coef(e.value)} ${BiomarcadorDef.byId(e.key)?.unidad ?? ''}/año',
-                            style: t.labelMedium!.copyWith(
-                              color: e.value < 0 ? MoiraiColors.greenInk : MoiraiColors.amberInk,
-                              fontFeatures: const [FontFeature.tabularFigures()],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
+                children: [for (final f in (_efectosBackend[e.key] ?? const <String, double>{}).entries) _fila(t, f.key, f.value)],
               ),
             ),
           const SizedBox(height: Sp.x3),
-          Text('Aproximados, de literatura. Los ajustamos con NHANES cuando el tiempo alcanza.', style: t.bodySmall),
+          Text('Aproximados, de literatura (ver `interventions.py`). Se suman a la deriva natural cada año simulado.', style: t.bodySmall),
         ],
       ),
     );
