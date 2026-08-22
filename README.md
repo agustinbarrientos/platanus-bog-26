@@ -4,7 +4,7 @@
 
 **Tus biomarcadores, vividos diez mil veces**
 
-[pb26.uo.ar](https://pb26.uo.ar/)
+[moirai.uo.ar](https://moirai.uo.ar/)
 
 </div>
 
