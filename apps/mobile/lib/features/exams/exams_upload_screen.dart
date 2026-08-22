@@ -15,6 +15,11 @@ import '../../widgets/mo.dart';
 
 enum _Estado { idle, leyendo, fallo }
 
+/// Valores que Claude vio en el documento pero el backend no guardó (unidad o
+/// rango fuera de lo que acepta). Ya vienen en texto legible. Los muestra la
+/// pantalla de confirmación.
+final advertenciasLecturaProvider = StateProvider<List<String>>((_) => const []);
+
 /// A · Subir exámenes. Foto, archivo o a mano; todo opcional. Mientras lee,
 /// la mascota trabaja en lugar de un spinner.
 class ExamsUploadScreen extends ConsumerStatefulWidget {
@@ -27,6 +32,7 @@ class ExamsUploadScreen extends ConsumerStatefulWidget {
 class _ExamsUploadScreenState extends ConsumerState<ExamsUploadScreen> {
   _Estado _estado = _Estado.idle;
   String? _aviso;
+  MoTone _avisoTone = MoTone.watch;
 
   static const _fallo = 'No alcancé a leer bien ese archivo. Si quieres, escribe los valores a mano y seguimos.';
 
@@ -63,13 +69,15 @@ class _ExamsUploadScreenState extends ConsumerState<ExamsUploadScreen> {
     try {
       final r = await ref.read(examsRepositoryProvider).extraer(path);
       if (!mounted) return;
-      if (r.biomarcadores.isEmpty) {
-        _mostrarAviso(_fallo);
+      if (r.leidos.isEmpty && r.advertencias.isEmpty) {
+        _mostrarAviso('No encontré valores que reconozca en ese documento. Puedes escribirlos a mano.', tone: MoTone.brand);
         return;
       }
       final fecha = r.fechaExamen;
+      // `r.biomarcadores` es la lista completa que el backend guardó tras
+      // mezclar esta lectura con lo que ya tenía; `r.leidos` es lo de hoy.
       final lectura = [for (final b in r.biomarcadores) (b.fecha == null && fecha != null) ? b.copyWith(fecha: fecha) : b];
-      _irAConfirmar(lectura);
+      _irAConfirmar(lectura, advertencias: r.advertencias);
     } catch (_) {
       if (mounted) _mostrarAviso(_fallo);
     }
@@ -88,8 +96,9 @@ class _ExamsUploadScreenState extends ConsumerState<ExamsUploadScreen> {
 
   void _aMano() => _irAConfirmar(const <Biomarcador>[]);
 
-  void _irAConfirmar(List<Biomarcador> lectura) {
+  void _irAConfirmar(List<Biomarcador> lectura, {List<String> advertencias = const []}) {
     ref.read(lecturaPendienteProvider.notifier).state = lectura;
+    ref.read(advertenciasLecturaProvider.notifier).state = advertencias;
     setState(() => _estado = _Estado.idle);
     context.push(Routes.examsConfirm);
   }
@@ -99,9 +108,10 @@ class _ExamsUploadScreenState extends ConsumerState<ExamsUploadScreen> {
     context.go(Routes.simulating);
   }
 
-  void _mostrarAviso(String texto) => setState(() {
+  void _mostrarAviso(String texto, {MoTone tone = MoTone.watch}) => setState(() {
         _estado = _Estado.fallo;
         _aviso = texto;
+        _avisoTone = tone;
       });
 
   // ── UI ─────────────────────────────────────────────────────────────────
@@ -168,11 +178,14 @@ class _ExamsUploadScreenState extends ConsumerState<ExamsUploadScreen> {
         if (_aviso != null) ...[
           MoNotice(
             text: _aviso!,
-            tone: MoTone.watch,
-            icon: Icons.auto_fix_high_rounded,
+            tone: _avisoTone,
+            icon: _avisoTone == MoTone.brand ? Icons.search_off_rounded : Icons.auto_fix_high_rounded,
             action: TextButton(
               onPressed: _aMano,
-              style: TextButton.styleFrom(foregroundColor: MoiraiColors.amberInk, padding: const EdgeInsets.symmetric(horizontal: 10)),
+              style: TextButton.styleFrom(
+                foregroundColor: _avisoTone == MoTone.brand ? MoiraiColors.blueInk : MoiraiColors.amberInk,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+              ),
               child: const Text('A mano'),
             ),
           ).animate().fadeIn(duration: Motion.slow).slideY(begin: -.05, end: 0, curve: Motion.out),

@@ -83,12 +83,33 @@ class _Header extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Expanded(child: Text('Tu futuro', style: t.headlineLarge)),
-            MoBadge(
-              '${r.escenarios.length} escenarios · ${Fmt.entero(5000)} futuros',
-              tone: MoTone.brand,
-              icon: Icons.auto_awesome_rounded,
+            // Entrada al chat con la mascota (tiene los datos a la mano).
+            Material(
+              color: MoiraiColors.blueSoft,
+              shape: const StadiumBorder(),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: () => context.push(Routes.chat),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 14, 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.chat_bubble_outline_rounded, size: 16, color: MoiraiColors.blueInk),
+                      const SizedBox(width: 6),
+                      Text('Pregúntame', style: t.labelMedium!.copyWith(color: MoiraiColors.blueInk, fontWeight: FontWeight.w800)),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ],
+        ),
+        const SizedBox(height: Sp.x3),
+        MoBadge(
+          '${r.escenarios.length} escenarios · ${Fmt.entero(5000)} futuros',
+          tone: MoTone.brand,
+          icon: Icons.auto_awesome_rounded,
         ),
         const SizedBox(height: Sp.x3),
         Text('Esto es lo que vi cuando recorrí tus futuros.', style: t.bodyLarge!.copyWith(color: MoiraiColors.ink2)),
@@ -227,6 +248,11 @@ class _ProjectionCard extends StatelessWidget {
                   Expanded(child: Text('Ese rango no es un detalle: es lo que todavía no sé de ti.', style: t.bodySmall)),
                 ],
               ),
+              const SizedBox(height: Sp.x3),
+              Text(
+                'Curva interpolada entre hoy y el año $horizonte a partir de ${Fmt.entero(5000)} trayectorias; las líneas finas son ilustrativas.',
+                style: t.bodySmall!.copyWith(color: MoiraiColors.ink3),
+              ),
               const SizedBox(height: Sp.x4),
               Row(
                 children: [
@@ -353,7 +379,7 @@ class _WhySection extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: Sp.x3),
-              Text('Estos son los factores que más mueven tu edad biológica hoy.', style: t.bodySmall),
+              Text('Contribuciones aproximadas: qué mueve más tu edad biológica hoy.', style: t.bodySmall),
             ],
           ),
         ),

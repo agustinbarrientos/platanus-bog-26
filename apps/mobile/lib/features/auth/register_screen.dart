@@ -9,7 +9,7 @@ import '../../data/repositories/auth_repository.dart';
 import '../../widgets/mascot.dart';
 import '../../widgets/mo.dart';
 
-/// Registro con Supabase (correo + contraseña). Al crear la cuenta ya hay
+/// Registro contra el backend (correo + contraseña). Al crear la cuenta ya hay
 /// sesión: el router se entera solo y manda al onboarding.
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -42,8 +42,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       setState(() => _aviso = 'Ese correo no se ve completo. ¿Lo revisas?');
       return;
     }
-    if (clave.length < 6) {
-      setState(() => _aviso = 'La contraseña necesita al menos 6 caracteres.');
+    if (clave.length < 8) {
+      setState(() => _aviso = 'La contraseña necesita al menos 8 caracteres.');
       return;
     }
     setState(() {
@@ -118,7 +118,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           onSubmitted: (_) => _crear(),
           decoration: InputDecoration(
             labelText: 'Contraseña',
-            helperText: 'Mínimo 6 caracteres.',
+            helperText: 'Mínimo 8 caracteres.',
             prefixIcon: const Icon(Icons.lock_outline_rounded),
             suffixIcon: IconButton(
               tooltip: _verClave ? 'Ocultar' : 'Mostrar',

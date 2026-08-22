@@ -10,6 +10,7 @@ import '../../app/theme/tokens.dart';
 import '../../core/format.dart';
 import '../../data/models/biomarcador.dart';
 import '../../widgets/mo.dart';
+import 'exams_upload_screen.dart' show advertenciasLecturaProvider;
 
 /// Estado editable de un biomarcador en la pantalla de confirmación.
 class _Entrada {
@@ -74,8 +75,10 @@ class ExamsConfirmScreen extends ConsumerStatefulWidget {
 
 class _ExamsConfirmScreenState extends ConsumerState<ExamsConfirmScreen> {
   late final List<_Entrada> _entradas;
+  late final List<_Entrada> _otras;
   late final bool _manual;
   bool _guardando = false;
+  bool _verOtras = false;
 
   @override
   void initState() {
@@ -83,16 +86,22 @@ class _ExamsConfirmScreenState extends ConsumerState<ExamsConfirmScreen> {
     final lectura = ref.read(lecturaPendienteProvider) ?? const <Biomarcador>[];
     _manual = lectura.isEmpty;
     _entradas = [
-      for (final def in BiomarcadorDef.all) _Entrada(def: def, leido: lectura.where((b) => b.nombre == def.id).firstOrNull),
+      for (final def in BiomarcadorDef.phenoAgeDefs) _Entrada(def: def, leido: lectura.where((b) => b.nombre == def.id).firstOrNull),
     ];
-    for (final e in _entradas) {
+    // Opcionales fuera de PhenoAge (el IMC lo calcula el backend con el perfil).
+    _otras = [
+      for (final id in const ['colesterol_total', 'presion_sistolica'])
+        _Entrada(def: BiomarcadorDef.byId(id)!, leido: lectura.where((b) => b.nombre == id).firstOrNull),
+    ];
+    _verOtras = _otras.any((e) => e.activo);
+    for (final e in _entradas.followedBy(_otras)) {
       e.controller.addListener(_refrescar);
     }
   }
 
   @override
   void dispose() {
-    for (final e in _entradas) {
+    for (final e in _entradas.followedBy(_otras)) {
       e.dispose();
     }
     super.dispose();
@@ -117,20 +126,23 @@ class _ExamsConfirmScreenState extends ConsumerState<ExamsConfirmScreen> {
     final now = DateTime.now();
     final fechaActual = '${now.year}-${now.month.toString().padLeft(2, '0')}';
     final lista = <Biomarcador>[
-      for (final e in _entradas)
+      for (final e in _entradas.followedBy(_otras))
         if (e.valor != null)
           Biomarcador(
             nombre: e.def.id,
             valor: e.valor!,
-            unidad: e.leido?.unidad ?? e.def.unidad,
+            // Siempre la unidad ASCII del backend (la bonita es solo para mostrar).
+            unidad: e.def.unidad,
             fecha: e.leido?.fecha ?? fechaActual,
             fuente: e.deLectura ? 'documento' : 'manual',
             confianza: e.confianza,
           ),
     ];
+    // Guarda local y hace PATCH a /me/health-context antes de simular.
     await ref.read(biomarcadoresProvider.notifier).set(lista);
     if (!mounted) return;
     ref.read(lecturaPendienteProvider.notifier).state = null;
+    ref.read(advertenciasLecturaProvider.notifier).state = const [];
     ref.read(simulationProvider.notifier).start();
     context.go(Routes.simulating);
   }
@@ -141,6 +153,7 @@ class _ExamsConfirmScreenState extends ConsumerState<ExamsConfirmScreen> {
     final t = Theme.of(context).textTheme;
     final n = _conValor;
     final borrosos = _entradas.where((e) => e.confianza == 'baja').map((e) => e.def.nombre).toList();
+    final advertencias = ref.watch(advertenciasLecturaProvider);
 
     return MoScreen(
       appBar: AppBar(),
@@ -176,11 +189,61 @@ class _ExamsConfirmScreenState extends ConsumerState<ExamsConfirmScreen> {
             icon: n >= 6 ? Icons.compress_rounded : Icons.expand_rounded,
           ),
         ),
+        if (advertencias.isNotEmpty) ...[
+          const SizedBox(height: Sp.stackCard),
+          MoNotice(
+            tone: MoTone.watch,
+            icon: Icons.visibility_outlined,
+            text: 'Vi estos valores pero no los guardé:\n${advertencias.map((a) => '· $a').join('\n')}',
+          ).animate().fadeIn(duration: Motion.slow),
+        ],
         const SizedBox(height: Sp.stackCard),
         for (var i = 0; i < _entradas.length; i++) ...[
           _Fila(entrada: _entradas[i], onActivar: () => _activar(_entradas[i])).stagger(i, base: 40.ms),
           if (i < _entradas.length - 1) const SizedBox(height: Sp.x3 + 2),
         ],
+        const SizedBox(height: Sp.stackCard),
+        // Otros datos útiles (no entran en PhenoAge; el IMC lo calculo con el perfil).
+        MoCard(
+          tone: MoTone.sunken,
+          onTap: () => setState(() => _verOtras = !_verOtras),
+          padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Otros datos útiles', style: t.titleSmall!.copyWith(color: MoiraiColors.ink2)),
+                    const SizedBox(height: 3),
+                    Text('Colesterol total y presión sistólica. Opcionales; no entran en PhenoAge.', style: t.bodySmall),
+                  ],
+                ),
+              ),
+              const SizedBox(width: Sp.x3),
+              AnimatedRotation(
+                turns: _verOtras ? .5 : 0,
+                duration: Motion.base,
+                child: const Icon(Icons.expand_more_rounded, color: MoiraiColors.ink3),
+              ),
+            ],
+          ),
+        ),
+        AnimatedSize(
+          duration: Motion.base,
+          curve: Motion.out,
+          alignment: Alignment.topCenter,
+          child: !_verOtras
+              ? const SizedBox(width: double.infinity)
+              : Column(
+                  children: [
+                    for (var i = 0; i < _otras.length; i++) ...[
+                      const SizedBox(height: Sp.x3 + 2),
+                      _Fila(entrada: _otras[i], onActivar: () => _activar(_otras[i])),
+                    ],
+                  ],
+                ),
+        ),
         if (borrosos.isNotEmpty) ...[
           const SizedBox(height: Sp.stackCard),
           MoNotice(
@@ -288,7 +351,7 @@ class _Fila extends StatelessWidget {
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                     hintText: '—',
-                    suffixText: def.unidad,
+                    suffixText: BiomarcadorDef.unidadBonita(def.unidad),
                     suffixStyle: t.labelMedium!.copyWith(color: MoiraiColors.ink3),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(Rad.sm),

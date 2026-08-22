@@ -86,9 +86,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   @override
   void initState() {
     super.initState();
-    final meta = ref.read(authRepositoryProvider).user?.userMetadata;
-    final n = meta?['full_name'];
-    if (n is String && n.trim().isNotEmpty) _nombre.text = n.trim();
+    // El nombre se prellena desde /me cuando llegue (ver _despertar).
     _despertar();
   }
 
