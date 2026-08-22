@@ -25,9 +25,7 @@ No `.env` is needed to boot — every setting has a working default. Copy
    that still has `profiles` pointing at `auth.users`.
 2. Put the **transaction pooler** connection string (port 6543) in `.env` as
    `DATABASE_URL`, and the same value in Render → Environment.
-3. Verify: `python scripts/check_db.py` — connects, writes a row, reads it
-   back, deletes it.
-4. Live check: `GET /health/ready` returns 200 with the database name, or 503
+3. Verify: `GET /health/ready` returns 200 with the database name, or 503
    with the reason.
 
 Use the **transaction pooler**, not the direct connection. Supabase's direct
@@ -128,10 +126,8 @@ app/
     health.py           /health (liveness) and /health/ready (database)
     auth.py             /auth — accounts and sessions
     profile.py          /me — the intake form
-    items.py            scratch table from the connection test, safe to delete
 schema.sql              the schema
 scripts/apply_schema.py apply schema.sql (idempotent)
-scripts/check_db.py     end-to-end connection test
 ```
 
 ## Adding endpoints
