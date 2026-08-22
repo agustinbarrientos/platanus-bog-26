@@ -28,6 +28,15 @@ class Settings(BaseSettings):
     #: have one; "*" is fine while nothing is authenticated with cookies.
     cors_origins: str = "*"
 
+    # ---- database ----
+    #: Supabase → Project Settings → Database → Connection string → Transaction
+    #: pooler (port 6543). Either the postgresql:// or postgresql+asyncpg://
+    #: form works; app.db normalizes it.
+    database_url: str = ""
+    #: Held separately so the password can be rotated without rewriting the URL.
+    database_password: str = ""
+    db_echo: bool = False
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

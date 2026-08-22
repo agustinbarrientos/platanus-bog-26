@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import Settings, get_settings
+from app.db import dispose_engine
 from app.routers import health, items
 
 log = logging.getLogger("app")
@@ -24,11 +25,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        # Open shared clients / pools here and close them after the yield, so a
-        # deploy tears them down cleanly instead of leaking sockets.
         log.info("api.starting environment=%s", settings.environment)
-        yield
-        log.info("api.stopped")
+        try:
+            yield
+        finally:
+            # Close database connections on shutdown; Supabase counts open
+            # connections against the project ceiling even after the instance
+            # stops serving.
+            await dispose_engine()
+            log.info("api.stopped")
 
     app = FastAPI(
         title=settings.app_name,

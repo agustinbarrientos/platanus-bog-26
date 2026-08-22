@@ -18,15 +18,40 @@ uvicorn app.main:app --reload
 No `.env` is needed to boot — every setting has a working default. Copy
 `.env.example` to `.env` when you want to override one.
 
+## Database (Supabase)
+
+1. Run `schema.sql` in the Supabase SQL editor to create the `items` table.
+2. Put the **transaction pooler** connection string (port 6543) in `.env` as
+   `DATABASE_URL`, and the same value in Render → Environment.
+3. Verify: `python scripts/check_db.py` — connects, writes a row, reads it
+   back, deletes it.
+4. Live check: `GET /health/ready` returns 200 with the database name, or 503
+   with the reason.
+
+Use the **transaction pooler**, not the direct connection. Supabase's direct
+host is IPv6-only and Render dials out over IPv4, so it will not resolve.
+
+Two things `app/db.py` handles so you do not have to: it rewrites
+`postgresql://` to `postgresql+asyncpg://`, and strips `?sslmode=require`
+(a libpq parameter that asyncpg rejects). It also disables the prepared
+statement cache, which pgbouncer in transaction mode cannot support.
+
+If the password contains `@ : / ? #`, percent-encode it inside the URL —
+`@` becomes `%40` — or the URL parser splits on it.
+
 ## Layout
 
 ```
 app/
   main.py            app factory: CORS, lifespan, router wiring
   config.py          env-driven settings
+  db.py              engine, session dependency, Supabase URL fix-ups
+  models.py          tables
   routers/
-    health.py        /health — what Render pings
-    items.py         example CRUD, in-memory — delete when real endpoints exist
+    health.py        /health (liveness, Render pings this) and /health/ready (database)
+    items.py         CRUD backed by Postgres
+schema.sql           run once in the Supabase SQL editor
+scripts/check_db.py  end-to-end connection test
 ```
 
 ## Adding endpoints
