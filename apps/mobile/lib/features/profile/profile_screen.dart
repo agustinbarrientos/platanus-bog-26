@@ -57,6 +57,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         _Header(me: me, ob: ob, email: email, onFoto: _cambiarFoto, onRetry: () => ref.invalidate(meProvider)),
         const SizedBox(height: Sp.stackSection),
 
+        s(_PreguntaleCard(onTap: () => context.push(Routes.chat))),
+        const SizedBox(height: Sp.stackCard),
+
         s(_DatosBasicosCard(me: me, onRetry: () => ref.invalidate(meProvider))),
         const SizedBox(height: Sp.stackCard),
 
@@ -105,10 +108,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           label: const Text('Cerrar sesión'),
         )),
         const SizedBox(height: Sp.x3),
+        s(OutlinedButton.icon(
+          onPressed: _cambiarClave,
+          icon: const Icon(Icons.lock_reset_rounded, size: 20),
+          label: const Text('Cambiar contraseña'),
+        )),
+        const SizedBox(height: Sp.x3),
         s(TextButton(
           onPressed: _borrando ? null : _confirmarBorrado,
           style: TextButton.styleFrom(foregroundColor: MoiraiColors.ink2),
-          child: Text(_borrando ? 'Borrando…' : 'Borrar mis datos'),
+          child: Text(_borrando ? 'Borrando…' : 'Borrar mi cuenta'),
         )),
         const SizedBox(height: Sp.x6),
         s(MoFootnote('Moirai 0.1.0 · ${Uri.tryParse(Env.apiBaseUrl)?.host ?? Env.apiBaseUrl}')),
@@ -193,37 +202,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
+  Future<void> _cambiarClave() async {
+    final ok = await changePasswordSheet(context);
+    if (ok == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Listo, cambié tu contraseña.')));
+    }
+  }
+
   Future<void> _confirmarBorrado() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('¿Borro todo?'),
-        content: const Text('Borro tu perfil y tus simulaciones. Esto no se puede deshacer.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Mejor no')),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: TextButton.styleFrom(foregroundColor: MoiraiColors.amberInk),
-            child: const Text('Sí, borrar'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true || !mounted) return;
-    setState(() {
-      _borrando = true;
-      _aviso = null;
-    });
     final uid = ref.read(currentUserIdProvider);
-    final profile = ref.read(profileRepositoryProvider);
+    setState(() => _aviso = null);
+    final ok = await confirmDeleteAccount(context);
+    if (ok != true) return;
+    // El backend ya borró la cuenta y el token local quedó limpio (el router
+    // redirige solo). Solo falta lo que guardaba en este dispositivo.
+    setState(() => _borrando = true);
     try {
-      await profile.deleteMe();
-      if (uid != null) await profile.clearLocal(uid);
-      await ref.read(authRepositoryProvider).signOut();
-    } on ApiException catch (e) {
-      if (mounted) setState(() => _aviso = e.message);
-    } catch (_) {
-      if (mounted) setState(() => _aviso = 'No pude borrar tus datos. ¿Tienes internet?');
+      if (uid != null) await ref.read(profileRepositoryProvider).clearLocal(uid);
     } finally {
       if (mounted) setState(() => _borrando = false);
     }
@@ -368,6 +363,41 @@ class _ColdStartNoticeState extends State<_ColdStartNotice> {
       child: _show
           ? const MoNotice(text: 'El servidor está despertando, dame unos segundos…', icon: Icons.hourglass_top_rounded)
           : const SizedBox(width: double.infinity),
+    );
+  }
+}
+
+// ── Pregúntale a Moirai ──────────────────────────────────────────────────
+
+class _PreguntaleCard extends StatelessWidget {
+  const _PreguntaleCard({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    return MoCard(
+      tone: MoTone.brand,
+      onTap: onTap,
+      padding: const EdgeInsets.fromLTRB(Sp.x4, Sp.x4, Sp.gutter, Sp.x4),
+      child: Row(
+        children: [
+          const MoiraiMascot(size: 52),
+          const SizedBox(width: Sp.x4),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Pregúntale a Moirai', style: t.titleMedium),
+                const SizedBox(height: 2),
+                Text('Tengo tus datos a la mano. Pregúntame lo que quieras.', style: t.bodySmall),
+              ],
+            ),
+          ),
+          const SizedBox(width: Sp.x2),
+          const Icon(Icons.chat_bubble_outline_rounded, color: MoiraiColors.blueInk),
+        ],
+      ),
     );
   }
 }
@@ -668,14 +698,15 @@ class _ExamenesCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context).textTheme;
-    final total = BiomarcadorDef.all.length;
+    final total = BiomarcadorDef.phenoAgeDefs.length;
+    final tengo = bms.where((b) => BiomarcadorDef.byId(b.nombre)?.phenoAge ?? false).length;
     final fechas = bms.map((b) => b.fecha).whereType<String>().toList()..sort();
     final ultima = fechas.isEmpty ? null : _fechaExamen(fechas.last);
     return ProfileCard(
       title: 'Exámenes',
       subtitle: bms.isEmpty
           ? 'Aún no tengo tus valores; simulo con medianas poblacionales y una banda más ancha.'
-          : '${bms.length} de $total valores${ultima == null ? '' : ' · último examen ${mesAnio.format(ultima)}'}',
+          : '$tengo de $total valores de PhenoAge${ultima == null ? '' : ' · último examen ${mesAnio.format(ultima)}'}',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -684,13 +715,13 @@ class _ExamenesCard extends StatelessWidget {
               if (k > 0) const Divider(),
               InfoRow(
                 label: BiomarcadorDef.byId(bms[k].nombre)?.nombre ?? bms[k].nombre,
-                value: '${Fmt.corto(bms[k].valor)} ${bms[k].unidad}',
+                value: '${Fmt.corto(bms[k].valor)} ${BiomarcadorDef.unidadBonita(bms[k].unidad)}',
                 trailing: bms[k].inferido ? const MoBadge('Inferido', tone: MoTone.watch) : null,
               ),
             ],
             const SizedBox(height: Sp.x4),
             Text(
-              bms.length >= total ? 'Tengo los 9. La banda es la más angosta que puedo darte.' : 'Los ${total - bms.length} que faltan los imputo con medianas NHANES.',
+              tengo >= total ? 'Tengo los 9. La banda es la más angosta que puedo darte.' : 'Los ${total - tengo} que faltan los imputo con medianas NHANES.',
               style: t.bodySmall,
             ),
             const SizedBox(height: Sp.x4),

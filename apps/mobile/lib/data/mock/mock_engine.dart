@@ -232,8 +232,8 @@ class MockEngine {
       escenarios.add(Escenario(
         intervenciones: combo,
         etiqueta: etiquetaCombo(combo),
-        aniosGanados: _r1(ganados),
-        rango: [_r1(_q(deltas, .1)), _r1(_q(deltas, .9))],
+        aniosGanados: r1(ganados),
+        rango: [r1(_q(deltas, .1)), r1(_q(deltas, .9))],
         esfuerzo: esfuerzo,
         ratio: esfuerzo == 0 ? 0 : (ganados / esfuerzo * 100).round() / 100,
         pctMejoran: mejoran,
@@ -254,24 +254,24 @@ class MockEngine {
         ? escenarios.first
         : Escenario(intervenciones: const [], etiqueta: 'Seguir como vas', aniosGanados: 0, rango: const [0, 0], esfuerzo: 0, ratio: 0, pctMejoran: 0, curva: baseline);
 
-    final shap = _shapAprox(estado0, edad0, input.habitos);
+    final shap = shapAprox(estado0, edad0, input.habitos);
     final top = shap.isNotEmpty ? shap.first : null;
-    final percentil = _percentil(hoy - edad0);
+    final pctPob = percentil(hoy - edad0);
 
     final resultado = SimulacionResultado(
       id: 'sim_${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}',
       creadoEn: DateTime.now(),
       edadCronologica: input.edad,
-      edadBiologicaHoy: _r1(hoy),
+      edadBiologicaHoy: r1(hoy),
       baseline: baseline,
       mejorDecision: mejor,
-      veredicto: _veredicto(mejor),
-      porque: _porque(mejor, top),
+      veredicto: veredicto(mejor),
+      porque: porque(mejor, top),
       shap: shap,
-      percentilPoblacional: percentil,
-      mensajePoblacional: percentil > 55
+      percentilPoblacional: pctPob,
+      mensajePoblacional: pctPob > 55
           ? 'Tu edad biológica está por encima del promedio de tu grupo de edad y sexo.'
-          : percentil < 45
+          : pctPob < 45
               ? 'Tu edad biológica está por debajo del promedio de tu grupo de edad y sexo.'
               : 'Tu edad biológica está cerca del promedio de tu grupo de edad y sexo.',
       incertidumbre: faltantes.isEmpty
@@ -316,17 +316,17 @@ class MockEngine {
   /// "SHAP" aproximado: contribución de cada variable = diferencia de PhenoAge
   /// al reemplazar esa variable por su mediana. Basta para decir "tu palanca
   /// dominante es la inflamación". El backend lo hace con shap real.
-  static List<ShapDriver> _shapAprox(Map<String, double> estado, double edad, Map<String, dynamic> habitos) {
+  static List<ShapDriver> shapAprox(Map<String, double> estado, double edad, Map<String, dynamic> habitos) {
     final base = phenoAge(estado, edad);
     final out = <ShapDriver>[];
     for (final e in estado.entries) {
       final alt = Map<String, double>.from(estado)..[e.key] = BiomarcadorDef.medianas[e.key]!;
       final c = base - phenoAge(alt, edad);
-      if (c.abs() >= 0.15) out.add(ShapDriver(variable: e.key, contribucion: _r1(c), direccion: c > 0 ? 'empeora' : 'mejora'));
+      if (c.abs() >= 0.15) out.add(ShapDriver(variable: e.key, contribucion: r1(c), direccion: c > 0 ? 'empeora' : 'mejora'));
     }
     // Hábitos: contribución ilustrativa por nivel.
     final sueno = (habitos['sueno_h'] as num?)?.toDouble() ?? 7;
-    if (sueno < 7) out.add(ShapDriver(variable: 'sueno_h', contribucion: _r1((7 - sueno) * 0.6), direccion: 'empeora'));
+    if (sueno < 7) out.add(ShapDriver(variable: 'sueno_h', contribucion: r1((7 - sueno) * 0.6), direccion: 'empeora'));
     if ('${habitos['estres']}' == 'alta') out.add(const ShapDriver(variable: 'estres', contribucion: 0.9, direccion: 'empeora'));
     if ('${habitos['ejercicio']}' == 'moderado' || '${habitos['ejercicio']}' == 'alto') {
       out.add(const ShapDriver(variable: 'ejercicio', contribucion: -1.1, direccion: 'mejora'));
@@ -336,20 +336,20 @@ class MockEngine {
     return out.take(5).toList();
   }
 
-  static int _percentil(double delta) {
+  static int percentil(double delta) {
     // Delta edad biológica − cronológica ~ N(0, 6) en población general.
     final z = delta / 6.0;
-    final p = 0.5 * (1 + _erf(z / math.sqrt2));
+    final p = 0.5 * (1 + erf(z / math.sqrt2));
     return (p * 100).round().clamp(1, 99);
   }
 
-  static double _erf(double x) {
+  static double erf(double x) {
     final t = 1 / (1 + 0.3275911 * x.abs());
     final y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * math.exp(-x * x);
     return x >= 0 ? y : -y;
   }
 
-  static String _veredicto(Escenario e) {
+  static String veredicto(Escenario e) {
     if (e.intervenciones.isEmpty) return 'Tu gemelo seguiría como vas: no encontré una palanca que mueva tu futuro lo suficiente.';
     final partes = e.intervenciones.map((id) => catalogo.firstWhere((c) => c.id == id).etiqueta.toLowerCase()).toList();
     final texto = partes.length == 1 ? partes.first : '${partes.sublist(0, partes.length - 1).join(', ')} y ${partes.last}';
@@ -374,11 +374,11 @@ class MockEngine {
 
   static String nombreVariable(String v) => _nombreVar[v] ?? v;
 
-  static String _porque(Escenario e, ShapDriver? top) {
+  static String porque(Escenario e, ShapDriver? top) {
     if (e.intervenciones.isEmpty) return 'Tus biomarcadores ya están cerca de donde las intervenciones dejan de mover la aguja.';
     final eje = top == null ? 'tu perfil' : nombreVariable(top.variable);
     return 'Es la combinación con más años ganados por unidad de esfuerzo. Actúa sobre $eje, que hoy es tu eje dominante de riesgo.';
   }
 
-  static double _r1(double v) => (v * 10).round() / 10;
+  static double r1(double v) => (v * 10).round() / 10;
 }

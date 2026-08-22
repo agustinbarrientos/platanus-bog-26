@@ -256,6 +256,17 @@ class _LeverDetailScreenState extends ConsumerState<LeverDetailScreen> {
         ],
         const SizedBox(height: Sp.stackSection),
 
+        // Pregúntale a Moirai sobre esta palanca (el chat llega enfocado en ella).
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: () => context.push(Routes.chatCon(enfoque: 'escenario:${widget.index}')),
+            icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+            label: const Text('Pregúntame sobre esta palanca'),
+          ),
+        ).stagger(6),
+        const SizedBox(height: Sp.stackCard),
+
         // Adherencia.
         const MoSectionTitle(
           '¿Y si no lo sostengo?',

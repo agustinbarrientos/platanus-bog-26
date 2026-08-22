@@ -3,11 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app/app.dart';
 import 'app/providers.dart';
-import 'core/env.dart';
+import 'data/api/token_store.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,12 +20,16 @@ Future<void> main() async {
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
   await initializeDateFormatting('es_CO');
-  await Supabase.initialize(url: Env.supabaseUrl, publishableKey: Env.supabaseAnonKey);
   final prefs = await SharedPreferences.getInstance();
+  final tokens = TokenStore();
+  await tokens.load();
 
   runApp(
     ProviderScope(
-      overrides: [sharedPrefsProvider.overrideWithValue(prefs)],
+      overrides: [
+        sharedPrefsProvider.overrideWithValue(prefs),
+        tokenStoreProvider.overrideWithValue(tokens),
+      ],
       child: const MoiraiApp(),
     ),
   );
