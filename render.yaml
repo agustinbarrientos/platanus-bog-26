@@ -1,0 +1,27 @@
+# Render Blueprint. Render → New → Blueprint → pick this repo and it builds the
+# service from this file, so the config is diffable in git instead of living in
+# a dashboard. `rootDir` is what makes the monorepo work: build and start
+# commands run inside apps/backend, not at the repo root.
+services:
+  - type: web
+    name: platanus-bog-26-api
+    runtime: python
+    plan: free
+    region: oregon
+    rootDir: apps/backend
+    buildCommand: pip install -r requirements.txt
+    # $PORT is assigned by Render; binding anything else fails the health check.
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13.4"
+      - key: ENVIRONMENT
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+      # sync:false = Render prompts for it and keeps it out of git. Set it to
+      # the deployed web app's origin once Vercel gives you a URL.
+      - key: CORS_ORIGINS
+        sync: false

@@ -1,0 +1,10 @@
+# The repo root ignores `.env*`, which would swallow the template too.
+!.env.example
+
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
