@@ -2,4 +2,16 @@ fastapi>=0.115
 uvicorn[standard]>=0.32
 pydantic>=2.9
 pydantic-settings>=2.6
+# Email validation and normalisation in the signup and login models.
+email-validator>=2.2
 httpx>=0.27
+sqlalchemy[asyncio]>=2.0.36
+asyncpg>=0.30
+# argon2id password hashing. 23.1 is where InvalidHashError got its name.
+argon2-cffi>=23.1
+# Vectorized biomarker random walk in the Monte Carlo simulation.
+numpy>=2.0
+# The health-context chat agent (POST /me/health-context/chat).
+anthropic>=1.0
+# Multipart form parsing — required by FastAPI's UploadFile/File().
+python-multipart>=0.0.9

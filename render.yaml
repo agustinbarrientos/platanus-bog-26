@@ -21,7 +21,8 @@ services:
         value: production
       - key: LOG_LEVEL
         value: INFO
-      # sync:false = Render prompts for it and keeps it out of git. Set it to
-      # the deployed web app's origin once Vercel gives you a URL.
+      # Only browsers enforce CORS, so the Flutter app ignores it entirely.
+      # "*" is safe here: the token is a header the client sets itself, not
+      # something a browser attaches on its own.
       - key: CORS_ORIGINS
-        sync: false
+        value: "*"
