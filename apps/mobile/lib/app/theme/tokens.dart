@@ -29,6 +29,11 @@ abstract final class MoiraiColors {
 
   /// Gris de las trayectorias "si sigues igual".
   static const ghost = Color(0xFFB5C2CC);
+
+  /// Azul del ícono de la app y del splash de Android (`design/app-icons/`,
+  /// `android/app/src/main/res/values/colors.xml`). Es la marca en el
+  /// launcher, no un color de UI: dentro de la app manda [action].
+  static const brand = Color(0xFF0096EA);
 }
 
 /// Escala de espaciado base 4 (del DS): 2, 4, 8, 12, 16, 20, 24, 32, 40, 56.

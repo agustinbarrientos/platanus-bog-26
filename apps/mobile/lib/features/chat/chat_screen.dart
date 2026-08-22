@@ -198,7 +198,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         titleSpacing: 0,
         title: Row(
           children: [
-            MoiraiMascot(size: 36, mood: _mood),
+            MoiraiMascot(size: 36, halo: false, mood: _mood),
             const SizedBox(width: Sp.x4),
             Expanded(
               child: Column(
@@ -304,18 +304,25 @@ class _EstadoVacio extends StatelessWidget {
         ).stagger(0),
         const SizedBox(height: Sp.x8),
         const Center(child: MoiraiMascot(size: 96)).stagger(1),
-        const SizedBox(height: Sp.x5),
+        const SizedBox(height: Sp.x4),
+        // Quién es: la medusa que sabe devolver su reloj. Una línea, una vez.
+        Text(
+          'Moirai · medusa Turritopsis dohrnii',
+          textAlign: TextAlign.center,
+          style: t.labelMedium!.copyWith(color: MoiraiColors.ink3, letterSpacing: .4),
+        ).stagger(2),
+        const SizedBox(height: Sp.x4),
         Text(
           'Pregúntame lo que quieras sobre tus datos',
           textAlign: TextAlign.center,
           style: t.headlineSmall,
-        ).stagger(2),
+        ).stagger(3),
         const SizedBox(height: Sp.x3),
         Text(
           'Respondo con lo que tengo guardado de ti —perfil, exámenes, edad biológica— y con lo que vi en tu última simulación: tus palancas, tu rango, el porqué. Debajo de cada respuesta te digo qué leí.',
           textAlign: TextAlign.center,
           style: t.bodyMedium!.copyWith(color: MoiraiColors.ink2),
-        ).stagger(3),
+        ).stagger(4),
         const SizedBox(height: Sp.x7),
         Wrap(
           spacing: Sp.x3,
@@ -328,7 +335,7 @@ class _EstadoVacio extends StatelessWidget {
                 selected: false,
                 icon: Icons.chat_bubble_outline_rounded,
                 onTap: () => onPregunta(s),
-              ).stagger(4 + i),
+              ).stagger(5 + i),
           ],
         ),
       ],
@@ -447,7 +454,7 @@ class _Burbuja extends StatelessWidget {
           SizedBox(
             width: 30,
             height: 30,
-            child: conAvatar ? MoiraiMascot(size: 30, mood: escribiendo ? MascotMood.working : MascotMood.idle) : null,
+            child: conAvatar ? MoiraiMascot(size: 30, halo: false, mood: escribiendo ? MascotMood.working : MascotMood.idle) : null,
           ),
           const SizedBox(width: Sp.x3),
         ],

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Espejo de MoiraiColors.bg y del azul de marca del ícono
+         (design/app-icons/android/values/ic_launcher_background.xml). -->
+    <color name="moirai_bg">#F3FBFC</color>
+    <color name="moirai_brand">#0096EA</color>
+</resources>

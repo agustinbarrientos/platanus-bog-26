@@ -53,6 +53,7 @@ class ChatRepository {
     '¿Cuál de mis datos pesa más en el resultado?',
     '¿Qué examen me conviene hacerme primero?',
     '¿Qué cambio pequeño me ayudaría más?',
+    '¿Quién eres?',
   ];
 
   /// Sugerencias cuando ya hay un resultado: apuntan a lo que está en pantalla.
@@ -106,6 +107,13 @@ class ChatRepository {
     if (enfocado != null && (m.length < 40 || _tiene(m, ['esta', 'esto', 'palanca']))) {
       final i = r.escenarios.indexOf(enfocado);
       return ('$demo ${palanca(enfocado, i + 1)}', [f('sim:escenario:$i', 'Palanca #${i + 1}: ${enfocado.etiqueta}', 'resultado')]);
+    }
+    if (_tiene(m, ['quien eres', 'que eres', 'medusa', 'quien es moirai', 'como te llamas'])) {
+      return (
+        'Soy Moirai, una medusa Turritopsis dohrnii: el único animal que, cuando se estresa o envejece, devuelve su reloj celular a un estado juvenil en vez de morir. '
+        'Yo no puedo hacer eso contigo —nadie puede—, pero sí simulo miles de versiones de tu futuro y te muestro cuál de tus hábitos lo mueve más. No tejo tu destino: te enseño a hilarlo.',
+        const [],
+      );
     }
     if (_tiene(m, ['rango', 'banda', 'segur', 'incertid', 'ancho', 'confia'])) {
       return (

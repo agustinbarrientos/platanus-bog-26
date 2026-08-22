@@ -85,7 +85,7 @@ Lo que explícitamente NO se construye (spec §12): foto envejecida, dieta/suple
 - **Voz**: primera persona del singular, la mascota le habla al usuario ("estoy simulando", "esto es lo que leí", "no encontré nada"). Nunca "nosotros". Español colombiano. Enmarcar como ganancia ("+2,4 años"), nunca como pérdida. "Estimación, no diagnóstico" aparece donde se muestra una proyección por primera vez.
 - **Color**: azul clínico suave (marca) + verde (bien/mejora) + ámbar (atención). **Rojo en ninguna parte.** Sin emoji. Sin "risk score", "abnormal", "crítico", streaks.
 - **Tipografía**: Fredoka (números grandes/display) + Nunito (cuerpo) en los mockups actuales (el DS anterior decía Quicksand; los mockups mandan). Números siempre en cifras, formato es-CO (`8.240`, `6,4`), un decimal máximo.
-- **Mascota**: cuatro estados — idle/tranquilo, working, gentle (malas noticias), happy. **Nunca triste.** En mockups es SVG animado; en Flutter la anotación del diseño sugiere Rive o Lottie.
+- **Mascota**: Moirai es una medusa *Turritopsis dohrnii* (la que revierte su reloj celular) — la misma silueta del ícono de la app en [design/app-icons/](design/app-icons/), ya instalado en Android e iOS. En Flutter se dibuja en código (`lib/widgets/mascot.dart`, `CustomPainter`: nada de Rive/Lottie ni assets) en negativo del ícono: campana azul, cara clara. Cuatro estados — idle/tranquilo, working (nada más rápido + burbujas), gentle (malas noticias), happy. **Nunca triste.**
 - **Motion**: suave, nada parpadea; los números grandes hacen count-up (~900 ms); radios ≥ 8 px, cards 24 px, botones pill, touch ≥ 48 px.
 
 ## Decisiones tomadas (2026-08-22)
