@@ -179,9 +179,10 @@ def test_deriva_base_coherente_con_la_tabla_de_medianas():
     `nhanes_reference._MEDIANS`. Acá se comprueba, que es lo que convierte esos
     números en algo verificable y no en constantes sueltas.
 
-    Tolerancia 2x en magnitud: son aproximaciones deliberadas. El que va más al
-    límite es `glucosa` (0,5 declarado vs 0,29 implícito, ~1,7x), anotado en
-    `interventions.py` como el primero a recalibrar.
+    Tolerancia 2x en magnitud: son aproximaciones deliberadas. `glucosa` era el
+    que más se desviaba (0,5 declarado vs 0,293 implícito, ~1,7x) y ya fue
+    recalibrado a 0,29; los que más se alejan ahora son `creatinina`, `vcm` y
+    `leucocitos`, en torno a 1,4x.
     """
     edad_media_del_tramo = {"<30": 25, "30-44": 37, "45-59": 52, "60-74": 67, "75+": 80}
 

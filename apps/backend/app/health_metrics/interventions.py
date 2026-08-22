@@ -48,14 +48,18 @@ class BiomarkerDynamics(NamedTuple):
 #: no una estimación poblacional publicada — que es exactamente lo que se puede
 #: defender ante el jurado.
 #:
-#: El caso más flojo es `glucosa`: 0.5 mg/dL/año está ~1,7x por encima de la
-#: pendiente que implica la tabla (0,29) y muy por encima del ~1 mg/dL por
-#: década que suele citarse para glucosa en ayunas en envejecimiento normal.
-#: Se deja como está para no mover los números del demo sin decidirlo; queda
-#: anotado como el primer coeficiente a recalibrar.
+#: `glucosa` fue recalibrada: estaba en 0.5 mg/dL/año, ~1,7x por encima de la
+#: pendiente de 0,293 que implica la tabla de medianas y muy por encima del ~1
+#: mg/dL por década que suele citarse para glucosa en ayunas en envejecimiento
+#: normal (la literatura longitudinal para este biomarcador es heterogénea: los
+#: estudios reportan desde incrementos casi planos en no diabéticos hasta
+#: pendientes mucho mayores en cohortes transversales, que mezclan el efecto de
+#: edad con el aumento de prevalencia de disglucemia). 0,29 es ahora el único
+#: coeficiente de `DYNAMICS` que sale de la tabla con dos decimales en vez de
+#: redondeado, precisamente porque era el que más se desviaba.
 DYNAMICS: dict[str, BiomarkerDynamics] = {
     "hs_CRP": BiomarkerDynamics(0.03, 0.6),
-    "glucosa": BiomarkerDynamics(0.5, 4.0),
+    "glucosa": BiomarkerDynamics(0.29, 4.0),
     "albumina": BiomarkerDynamics(-0.01, 0.08),
     "creatinina": BiomarkerDynamics(0.005, 0.04),
     "fosfatasa_alcalina": BiomarkerDynamics(0.3, 4.0),
