@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import uuid
 from datetime import date
-from decimal import Decimal
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, status
@@ -51,12 +50,18 @@ class ProfilePatch(BaseModel):
     being wiped alongside it.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={"examples": [{"weight_kg": 71.5}, {"blood_type": "O+"}]},
+    )
 
     full_name: str | None = Field(default=None, min_length=1, max_length=120)
     date_of_birth: date | None = None
-    height_cm: Decimal | None = Field(default=None, ge=100, le=250, decimal_places=1)
-    weight_kg: Decimal | None = Field(default=None, ge=25, le=350, decimal_places=1)
+    # float, not Decimal: these are human measurements at one decimal place, not
+    # money. Decimal renders as a *string* in JSON Schema, which produced
+    # unreadable docs and made the frontend parse "163.0" instead of 163.0.
+    height_cm: float | None = Field(default=None, ge=100, le=250)
+    weight_kg: float | None = Field(default=None, ge=25, le=350)
     blood_type: BloodType | None = None
     sex_at_birth: SexAtBirth | None = None
 
@@ -86,15 +91,30 @@ class ProfilePatch(BaseModel):
 
 
 class ProfileOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "user_id": "991d025c-8aae-4732-b350-e19535cd8f0b",
+                "full_name": "Ana Rueda",
+                "date_of_birth": "1991-11-02",
+                "height_cm": 163.0,
+                "weight_kg": 58.4,
+                "blood_type": "A-",
+                "sex_at_birth": "female",
+                "age": 34,
+            }
+        },
+    )
 
     user_id: uuid.UUID
     full_name: str | None
     date_of_birth: date | None
-    height_cm: Decimal | None
-    weight_kg: Decimal | None
-    blood_type: str | None
-    sex_at_birth: str | None
+    height_cm: float | None
+    weight_kg: float | None
+    # The Literal types, not bare str, so the docs list the valid values.
+    blood_type: BloodType | None
+    sex_at_birth: SexAtBirth | None
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -104,6 +124,29 @@ class ProfileOut(BaseModel):
 
 
 class MeOut(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "email": "ana@moirai.test",
+                "profile": {
+                    "user_id": "991d025c-8aae-4732-b350-e19535cd8f0b",
+                    "full_name": "Ana Rueda",
+                    "date_of_birth": "1991-11-02",
+                    "height_cm": 163.0,
+                    "weight_kg": 58.4,
+                    "blood_type": "A-",
+                    "sex_at_birth": "female",
+                    "age": 34,
+                },
+                "answered": ["full_name", "date_of_birth", "height_cm", "weight_kg",
+                             "blood_type", "sex_at_birth"],
+                "remaining": [],
+                "total": 6,
+                "complete": True,
+            }
+        }
+    )
+
     email: str | None
     profile: ProfileOut
     answered: list[str]
