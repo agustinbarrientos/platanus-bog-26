@@ -13,6 +13,7 @@ from typing import NamedTuple
 import numpy as np
 
 from app.health_metrics.biomarkers import BIOMARKER_SPECS, PHENOAGE_BIOMARKERS
+from app.health_metrics.evolution import deriva_total
 from app.health_metrics.interventions import DYNAMICS, SCENARIOS
 from app.health_metrics.nhanes_reference import impute_missing
 from app.health_metrics.phenoage import phenoage_years, to_formula_units
@@ -46,15 +47,23 @@ def _simulate_scenario(
 
     # One row per trajectory, one column per biomarker — evolved together so
     # every trajectory's noise draw is independent of every other trajectory's.
+    # dtype=float is load-bearing, not decoration: if every starting value
+    # happens to be a whole number numpy infers int64, and then each
+    # `state[i] = state[i] + deriva + ruido` silently truncates back to int.
+    # The fractional drifts (creatinina +0.005/yr) vanish, hs_CRP walks down
+    # to 0 past its own clip floor, and to_formula_units' log(0) takes the
+    # endpoint down with a 500.
     state = np.array(
-        [[valores_iniciales[nombre]] * n_trayectorias for nombre in PHENOAGE_BIOMARKERS]
+        [[valores_iniciales[nombre]] * n_trayectorias for nombre in PHENOAGE_BIOMARKERS],
+        dtype=float,
     )  # shape (9, n_trayectorias)
 
     for _year in range(anios):
         for i, nombre in enumerate(PHENOAGE_BIOMARKERS):
-            dyn = DYNAMICS[nombre]
-            deriva = dyn.deriva_anual + scenario.efectos_anuales.get(nombre, 0.0)
-            ruido = rng.normal(0.0, dyn.ruido_anual_sd, size=n_trayectorias)
+            # Same drift rule as the deterministic Capa 2 stepper — one source
+            # of truth in `evolution`, plus this layer's noise on top.
+            deriva = deriva_total(nombre, [escenario_key])
+            ruido = rng.normal(0.0, DYNAMICS[nombre].ruido_anual_sd, size=n_trayectorias)
             state[i] = state[i] + deriva + ruido
 
         # Clamp after each year, not just at the end: an unclamped random walk
