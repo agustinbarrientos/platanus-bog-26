@@ -11,3 +11,5 @@ asyncpg>=0.30
 argon2-cffi>=23.1
 # Vectorized biomarker random walk in the Monte Carlo simulation.
 numpy>=2.0
+# The health-context chat agent (POST /me/health-context/chat).
+anthropic>=1.0

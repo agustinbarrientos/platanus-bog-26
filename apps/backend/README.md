@@ -121,6 +121,7 @@ app/
   auth.py               CurrentUser dependency — reads and checks the token
   security.py           password hashing, token generation
   db.py                 engine, session dependency, Supabase URL fix-ups
+  anthropic_client.py    lazy Anthropic client singleton for the chat agent
   models.py             tables
   routers/
     health.py           /health (liveness) and /health/ready (database)
@@ -128,6 +129,7 @@ app/
     profile.py          /me — the intake form
     health_context.py   /me/health-context — biomarkers, habits, risk-assessment intake
     biological_age.py   /me/health-context/{phenoage,montecarlo} — compute, no state of its own
+    health_chat.py       /me/health-context/chat — agent grounded in the user's own data
   health_metrics/        pure compute: PhenoAge formula, NHANES imputation, Monte Carlo sim
 schema.sql              the schema
 scripts/apply_schema.py apply schema.sql (idempotent)

@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     #: composition rules push people towards "Password1!" and nothing else.
     min_password_length: int = 8
 
+    # ---- health-context chat agent ----
+    #: console.anthropic.com → API Keys. Only needed for POST
+    #: /me/health-context/chat; every other endpoint boots and runs without it.
+    anthropic_api_key: str = ""
+
     # ---- database ----
     #: Supabase → Project Settings → Database → Connection string → Transaction
     #: pooler (port 6543). Either the postgresql:// or postgresql+asyncpg://
