@@ -1,0 +1,39 @@
+{
+  "artboards": [
+    { "file": "Bienvenida.dc.html",        "x": 0,    "y": 0,    "w": 390, "h": 844, "title": "A1 · Bienvenida" },
+    { "file": "DatosBasicos.dc.html",      "x": 450,  "y": 0,    "w": 390, "h": 844, "title": "A2 · Datos básicos" },
+    { "file": "SubirExamenes.dc.html",     "x": 900,  "y": 0,    "w": 390, "h": 844, "title": "A3 · Subir exámenes" },
+    { "file": "ConfirmarLectura.dc.html",  "x": 1350, "y": 0,    "w": 390, "h": 844, "title": "A4 · Confirmar lectura" },
+
+    { "file": "SimulandoEnVivo.dc.html",   "x": 0,    "y": 990,  "w": 390, "h": 844, "title": "B1 · Simulando (vivo)" },
+    { "file": "SimulandoFondo.dc.html",    "x": 450,  "y": 990,  "w": 390, "h": 844, "title": "B2 · En segundo plano" },
+    { "file": "Notificacion.dc.html",      "x": 900,  "y": 990,  "w": 390, "h": 844, "title": "B3 · Notificación" },
+
+    { "file": "Main.dc.html",              "x": 0,    "y": 1980, "w": 390, "h": 844, "title": "C1 · Gemelo (principal)" },
+    { "file": "EstasBien.dc.html",         "x": 450,  "y": 1980, "w": 390, "h": 844, "title": "C2 · Estás bien" },
+    { "file": "QueMedir.dc.html",          "x": 900,  "y": 1980, "w": 390, "h": 844, "title": "C3 · Qué medir" },
+    { "file": "CurvaSupervivencia.dc.html","x": 1350, "y": 1980, "w": 390, "h": 844, "title": "C4 · Supervivencia" },
+
+    { "file": "Palancas.dc.html",          "x": 0,    "y": 2970, "w": 390, "h": 844, "title": "D1 · Palancas (vivo)" },
+    { "file": "DetallePalanca.dc.html",    "x": 450,  "y": 2970, "w": 390, "h": 844, "title": "D2 · Detalle pareado" },
+    { "file": "Adherencia.dc.html",        "x": 900,  "y": 2970, "w": 390, "h": 844, "title": "D3 · Adherencia (vivo)" },
+
+    { "file": "Calibracion.dc.html",       "x": 0,    "y": 3960, "w": 390, "h": 844, "title": "E1 · Calibración" },
+    { "file": "CasoIndividual.dc.html",    "x": 450,  "y": 3960, "w": 390, "h": 844, "title": "E2 · Caso individual" }
+  ],
+  "annotations": [
+    { "id": "flujo-a", "x": -330, "y": 40, "w": 280,
+      "text": "A · INGRESO\n\nOcho datos y ya. La escasez es la premisa, no una limitación que escondemos.\n\nEn A2 el abanico se forma en la esquina mientras respondes: enseña la metáfora antes de la pantalla principal.\n\nEn A4 la confianza de lectura alimenta la incertidumbre — y salva el demo si la extracción falla en vivo." },
+    { "id": "flujo-b", "x": -330, "y": 1030, "w": 280,
+      "text": "B · LA SIMULACIÓN, VISIBLE\n\nB1 reemplaza al spinner. Las trayectorias se dibujan una por una y el contador sube de verdad.\n\nEs la forma más rápida de que un jurado entienda que hay una microsimulación detrás y no un LLM improvisando." },
+    { "id": "flujo-c", "x": -330, "y": 2020, "w": 280,
+      "text": "C · EL GEMELO\n\nC1 es la pantalla que más importa. Regla aplicada: ningún número sin su palanca al lado.\n\nEl titular es healthspan, no expectativa de vida. El rango está tipografiado tan grande como el número.\n\nC4 (mortalidad) vive detrás de un toque deliberado. Nunca por defecto." },
+    { "id": "flujo-d", "x": -330, "y": 3010, "w": 280,
+      "text": "D · SIMULAR\n\nD2 muestra trayectorias pareadas: mismos futuros, misma semilla, una variable cambiada.\n\nD3 es la pregunta que ninguna calculadora puede responder: ¿y si aflojas a los 8 meses? Nadie más simula adherencia imperfecta." },
+    { "id": "flujo-e", "x": -330, "y": 4000, "w": 280,
+      "text": "E · RESPALDO\n\nEl chip de calibración del encabezado lleva acá desde cualquier pantalla.\n\nE2 es el cierre del demo: tres datos, lo que dije, lo que realmente pasó. Nadie más en el salón va a tener una curva de calibración." },
+    { "id": "voz", "x": -330, "y": -300, "w": 620,
+      "text": "VOZ · Todo en primera persona del singular. Tino le habla al usuario en privado: «estoy simulando», «esto es lo que leí», «no encontré nada». Nunca «nosotros» — un compañero es más cálido que una institución, y eso importa porque este producto puede generar ansiedad.\n\nCOLOR · Azul y verde clínicos suaves, misma luminosidad y croma, solo cambia el tono. Ámbar para atención. Rojo en ninguna parte.\n\nTIPO · Fredoka para números grandes, Nunito para el cuerpo. Ambas redondeadas.\n\nMASCOTA · Acá va como SVG animado en CSS. En Flutter sería Rive o Lottie. Cuatro estados: tranquilo, trabajando, suave (para malas noticias) y contento. Nunca triste: una mascota triste amplifica el miedo." }
+  ],
+  "launch": { "view": "canvas" }
+}

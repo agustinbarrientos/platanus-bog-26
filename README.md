@@ -48,33 +48,29 @@ Open [http://localhost:3000](http://localhost:3000).
 ## Structure
 
 ```text
-src/
-  app/
-    error.tsx
-    globals.css
-    layout.tsx
-    not-found.tsx
-    page.tsx
-  components/
-    theme-provider.tsx
-    theme-toggle.tsx
-    ui/
-  lib/
-    utils.ts
-  types.ts
+apps/
+  backend/
+  mobile/
+  web/
+    src/
+      app/
+      components/
+      lib/
+      types.ts
 ```
 
-Replace `src/app/page.tsx` when the product direction is known. Keep Server Components as the default and add client boundaries only for browser state or browser APIs. Keep custom project types in `src/types.ts`.
+The backend and mobile directories contain only empty README files so Git preserves them until their foundations are selected. Keep Server Components as the default in `apps/web` and add client boundaries only for browser state or browser APIs. Keep custom web project types in `apps/web/src/types.ts`.
 
 ## UI foundation
 
-The initial shadcn set is limited to Button, Badge, Card, and Dropdown Menu. Add a component only when a real interface requires it:
+The initial shadcn set is limited to Button, Badge, Card, and Dropdown Menu. Run component commands from the web workspace and add a component only when a real interface requires it:
 
 ```bash
+cd apps/web
 npx shadcn@latest add dialog
 ```
 
-Theme tokens live in `src/app/globals.css`. Theme selection is provided by `src/components/theme-toggle.tsx` and follows the system preference until a visitor chooses light or dark.
+Theme tokens live in `apps/web/src/app/globals.css`. Theme selection is provided by `apps/web/src/components/theme-toggle.tsx` and follows the system preference until a visitor chooses light or dark.
 
 ## Validation
 
@@ -89,9 +85,9 @@ Add automated tests when the product introduces behavior with meaningful regress
 
 ## Deployment
 
-The Vercel project is already connected to `agustinbarrientos/platanus-bog-26`.
+The Vercel project is already connected to `agustinbarrientos/platanus-bog-26`. Set its Root Directory to `apps/web` before the next deployment.
 
 - A push to a non-production branch creates a preview deployment.
 - A push or merge to `main` creates a production deployment.
 
-No Vercel CLI setup or `vercel.json` file is required.
+No Vercel CLI setup or `vercel.json` file is required when the Root Directory is configured in the Vercel project.

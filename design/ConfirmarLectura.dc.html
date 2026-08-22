@@ -1,0 +1,123 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600&family=Nunito:wght@400;600;700&display=swap">
+  <style>
+  body { margin: 0; background: oklch(0.982 0.008 215); font-family: 'Nunito', 'Avenir Next', 'Segoe UI', system-ui, sans-serif; color: oklch(0.30 0.028 245);
+         -webkit-font-smoothing: antialiased; }
+  * { box-sizing: border-box; }
+  a { color: oklch(0.46 0.075 240); text-decoration: none; }
+  a:hover { color: oklch(0.30 0.028 245); }
+  @keyframes breathe { 0%,100% { transform: translateY(0) scale(1); }
+                       50% { transform: translateY(-3px) scale(1.025); } }
+  @keyframes blink { 0%,92%,100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
+  @keyframes orbit { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  @keyframes draw { from { stroke-dashoffset: 620; } to { stroke-dashoffset: 0; } }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @keyframes pulse { 0%,100% { opacity: .35; } 50% { opacity: .9; } }
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; background: oklch(0.982 0.008 215); position: relative;
+    overflow: hidden; display: flex; flex-direction: column;">
+  <div style="display: flex; align-items: center; gap: 12px; padding: 52px 20px 8px;">
+    <div style="width: 44px; height: 44px; margin-left: -11px; border-radius: 22px;
+        display: flex; align-items: center; justify-content: center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="oklch(0.53 0.022 245)"
+    stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></div>
+    <div style="flex-grow: 1; font-family: 'Fredoka', 'Trebuchet MS', system-ui, sans-serif; font-size: 17px; font-weight: 500;">Esto es lo que leí</div>
+    
+  </div>
+  <div style="padding: 4px 20px 0; font-size: 14.5px; color: oklch(0.53 0.022 245); line-height: 1.55; text-wrap: pretty;">
+    Corrige lo que esté mal. Con los datos de confianza baja mi estimación se vuelve
+    <strong style="color: oklch(0.30 0.028 245);">más amplia</strong>, no más falsa.</div>
+  <div style="display: flex; flex-direction: column; gap: 8px; padding: 18px 20px 0; overflow: hidden;">
+    <div style="display: flex; align-items: center; gap: 12px;
+  min-height: 62px; padding: 12px 16px; border-radius: 20px; background: oklch(1 0.002 215);
+  border: 1px solid oklch(0.915 0.012 220);">
+  <div style="display: flex; flex-direction: column; gap: 5px; flex-grow: 1;">
+    <div style="font-size: 14.5px; font-weight: 600; color: oklch(0.53 0.022 245);">Colesterol total</div><div style="display: inline-flex; align-items: center; height: 24px; padding: 0 10px;
+    border-radius: 12px; background: oklch(0.935 0.032 158); color: oklch(0.44 0.070 160); font-size: 11.5px; font-weight: 700;">Confianza alta</div></div>
+  <div style="display: flex; align-items: baseline; gap: 4px;">
+    <span style="font-family: 'Fredoka', 'Trebuchet MS', system-ui, sans-serif; font-size: 22px; font-weight: 500;">212</span>
+    <span style="font-size: 12.5px; color: oklch(0.67 0.018 245); font-weight: 600;">mg/dL</span></div>
+  <div style="width: 44px; height: 44px; margin-right: -10px; border-radius: 22px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="oklch(0.67 0.018 245)"
+    stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg></div></div>
+    <div style="display: flex; align-items: center; gap: 12px;
+  min-height: 62px; padding: 12px 16px; border-radius: 20px; background: oklch(1 0.002 215);
+  border: 1px solid oklch(0.915 0.012 220);">
+  <div style="display: flex; flex-direction: column; gap: 5px; flex-grow: 1;">
+    <div style="font-size: 14.5px; font-weight: 600; color: oklch(0.53 0.022 245);">Colesterol HDL</div><div style="display: inline-flex; align-items: center; height: 24px; padding: 0 10px;
+    border-radius: 12px; background: oklch(0.935 0.032 158); color: oklch(0.44 0.070 160); font-size: 11.5px; font-weight: 700;">Confianza alta</div></div>
+  <div style="display: flex; align-items: baseline; gap: 4px;">
+    <span style="font-family: 'Fredoka', 'Trebuchet MS', system-ui, sans-serif; font-size: 22px; font-weight: 500;">48</span>
+    <span style="font-size: 12.5px; color: oklch(0.67 0.018 245); font-weight: 600;">mg/dL</span></div>
+  <div style="width: 44px; height: 44px; margin-right: -10px; border-radius: 22px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="oklch(0.67 0.018 245)"
+    stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg></div></div>
+    <div style="display: flex; align-items: center; gap: 12px;
+  min-height: 62px; padding: 12px 16px; border-radius: 20px; background: oklch(1 0.002 215);
+  border: 1px solid oklch(0.915 0.012 220);">
+  <div style="display: flex; flex-direction: column; gap: 5px; flex-grow: 1;">
+    <div style="font-size: 14.5px; font-weight: 600; color: oklch(0.53 0.022 245);">Glucosa en ayunas</div><div style="display: inline-flex; align-items: center; height: 24px; padding: 0 10px;
+    border-radius: 12px; background: oklch(0.935 0.032 232); color: oklch(0.46 0.075 240); font-size: 11.5px; font-weight: 700;">Confianza media</div></div>
+  <div style="display: flex; align-items: baseline; gap: 4px;">
+    <span style="font-family: 'Fredoka', 'Trebuchet MS', system-ui, sans-serif; font-size: 22px; font-weight: 500;">104</span>
+    <span style="font-size: 12.5px; color: oklch(0.67 0.018 245); font-weight: 600;">mg/dL</span></div>
+  <div style="width: 44px; height: 44px; margin-right: -10px; border-radius: 22px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="oklch(0.67 0.018 245)"
+    stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg></div></div>
+    <div style="display: flex; align-items: center; gap: 12px;
+  min-height: 62px; padding: 12px 16px; border-radius: 20px; background: oklch(1 0.002 215);
+  border: 1px solid oklch(0.76 0.085 78);">
+  <div style="display: flex; flex-direction: column; gap: 5px; flex-grow: 1;">
+    <div style="font-size: 14.5px; font-weight: 600; color: oklch(0.53 0.022 245);">Hemoglobina glicosilada</div><div style="display: inline-flex; align-items: center; height: 24px; padding: 0 10px;
+    border-radius: 12px; background: oklch(0.948 0.032 78); color: oklch(0.48 0.070 70); font-size: 11.5px; font-weight: 700;">Confianza baja</div></div>
+  <div style="display: flex; align-items: baseline; gap: 4px;">
+    <span style="font-family: 'Fredoka', 'Trebuchet MS', system-ui, sans-serif; font-size: 22px; font-weight: 500;">5,7</span>
+    <span style="font-size: 12.5px; color: oklch(0.67 0.018 245); font-weight: 600;">%</span></div>
+  <div style="width: 44px; height: 44px; margin-right: -10px; border-radius: 22px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="oklch(0.67 0.018 245)"
+    stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg></div></div>
+    <div style="display: flex; align-items: center; gap: 12px;
+  min-height: 62px; padding: 12px 16px; border-radius: 20px; background: oklch(1 0.002 215);
+  border: 1px solid oklch(0.915 0.012 220);">
+  <div style="display: flex; flex-direction: column; gap: 5px; flex-grow: 1;">
+    <div style="font-size: 14.5px; font-weight: 600; color: oklch(0.53 0.022 245);">Triglicéridos</div><div style="display: inline-flex; align-items: center; height: 24px; padding: 0 10px;
+    border-radius: 12px; background: oklch(0.935 0.032 158); color: oklch(0.44 0.070 160); font-size: 11.5px; font-weight: 700;">Confianza alta</div></div>
+  <div style="display: flex; align-items: baseline; gap: 4px;">
+    <span style="font-family: 'Fredoka', 'Trebuchet MS', system-ui, sans-serif; font-size: 22px; font-weight: 500;">158</span>
+    <span style="font-size: 12.5px; color: oklch(0.67 0.018 245); font-weight: 600;">mg/dL</span></div>
+  <div style="width: 44px; height: 44px; margin-right: -10px; border-radius: 22px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="oklch(0.67 0.018 245)"
+    stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg></div></div>
+  </div>
+  <div style="margin: 16px 20px 0; padding: 14px 16px; border-radius: 18px; background: oklch(0.948 0.032 78);
+    display: flex; gap: 10px; align-items: flex-start;">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="oklch(0.48 0.070 70)"
+    stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.6v.1"/></svg>
+    <div style="font-size: 13.5px; color: oklch(0.48 0.070 70); line-height: 1.5;">
+      La hemoglobina glicosilada la leí borrosa. Si la corriges, mi estimación se angosta bastante.</div>
+  </div>
+  <div style="padding: 16px 24px 40px; margin-top: auto;"><div style="height: 54px; border-radius: 27px; display: flex; align-items: center;
+    justify-content: center; font-family: 'Fredoka', 'Trebuchet MS', system-ui, sans-serif; font-size: 16.5px; font-weight: 500;
+    background: oklch(0.72 0.085 158); color: oklch(1 0 0); border: none; ">Construir mi gemelo</div></div>
+</div>
+</x-dc>
+<script data-dc-script>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
