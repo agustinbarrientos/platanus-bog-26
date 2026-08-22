@@ -265,8 +265,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     if (_pendiente.isNotEmpty) unawaited(_enviar());
     final notifier = ref.read(onboardingProvider.notifier);
     // Primero el estado (el router se entera en el mismo tick), luego la ruta:
-    // así no hay parada intermedia en /futuro.
-    final guardado = notifier.update((d) => d.copyWith(completo: true));
+    // así no hay parada intermedia en /futuro. marcarCompleto() también le
+    // avisa al backend, para que un dispositivo nuevo pueda saltarse esto.
+    final guardado = notifier.marcarCompleto();
     if (mounted) context.go(Routes.examsUpload);
     await guardado;
   }

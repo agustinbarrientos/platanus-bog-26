@@ -50,6 +50,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
     try {
       await ref.read(authRepositoryProvider).signIn(email: email, password: clave);
+      // Este dispositivo puede no tener el onboarding local (nunca lo hizo
+      // aquí, o se reinstaló) aunque la cuenta ya lo haya terminado en otro
+      // lado — si el backend dice que sí, nos ahorramos repetirlo.
+      await ref.read(onboardingProvider.notifier).hydrateFromBackend();
     } on AuthFailure catch (e) {
       if (mounted) setState(() => _aviso = e.message);
     } catch (_) {

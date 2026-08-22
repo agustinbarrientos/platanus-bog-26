@@ -81,6 +81,31 @@ class OnboardingNotifier extends Notifier<OnboardingData> {
     if (uid != null) await ref.read(profileRepositoryProvider).saveOnboarding(uid, state);
     unawaited(ref.read(profileRepositoryProvider).syncOnboarding(state));
   }
+
+  /// Fin del onboarding: local de inmediato (el router reacciona en el mismo
+  /// tick) y, en segundo plano, `health_context.onboarding_completo = true`
+  /// en el backend — es lo que un dispositivo nuevo o una reinstalación
+  /// consultan después para saltarse el onboarding.
+  Future<void> marcarCompleto() async {
+    state = state.copyWith(completo: true);
+    final uid = ref.read(currentUserIdProvider);
+    if (uid != null) await ref.read(profileRepositoryProvider).saveOnboarding(uid, state);
+    unawaited(ref.read(profileRepositoryProvider).markOnboardingCompletoBackend());
+  }
+
+  /// Si el local ya dice que sí, no hay nada que preguntarle al backend. Si
+  /// no, es la pregunta que un dispositivo nuevo / una reinstalación / un
+  /// login necesitan: "¿esta cuenta ya terminó el onboarding en otro lado?"
+  /// Best-effort — sin red o con el backend dormido, no hace nada y el
+  /// onboarding local sigue su curso normal.
+  Future<void> hydrateFromBackend() async {
+    if (state.completo) return;
+    final completoEnBackend = await ref.read(profileRepositoryProvider).fetchOnboardingCompletoBackend();
+    if (!completoEnBackend) return;
+    state = state.copyWith(completo: true);
+    final uid = ref.read(currentUserIdProvider);
+    if (uid != null) await ref.read(profileRepositoryProvider).saveOnboarding(uid, state);
+  }
 }
 
 final onboardingProvider = NotifierProvider<OnboardingNotifier, OnboardingData>(OnboardingNotifier.new);

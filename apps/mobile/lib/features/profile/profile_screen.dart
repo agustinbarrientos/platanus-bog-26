@@ -158,9 +158,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final repo = ref.read(wearablesRepositoryProvider);
     final label = _proveedorLabel(repo.proveedor);
     try {
-      final ok = await repo.conectar();
-      if (!ok) {
-        setState(() => _aviso = 'No pude conectar con $label. Revisa que esté instalado y que me des permiso de lectura.');
+      final r = await repo.conectar();
+      if (!r.ok) {
+        setState(() => _aviso = r.mensaje(label));
+        if (r.puedeInstalar) await repo.instalarProveedor();
         return;
       }
       final dias = await repo.leer();

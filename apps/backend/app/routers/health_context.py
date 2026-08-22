@@ -49,6 +49,7 @@ _EXAMPLE = {
         "creatinina y fosfatasa imputadas de medianas NHANES por edad/sexo; "
         "sin genotipo APOE, se usa CAIDE modelo 1 (sin genética)"
     ),
+    "onboarding_completo": True,
 }
 
 
@@ -118,6 +119,11 @@ class HealthContextPatch(BaseModel):
     objetivos_usuario: list[str] | None = None
     datos_faltantes: list[str] | None = None
     notas_incertidumbre: str | None = None
+    #: Not derived from field coverage — the app sets this explicitly when
+    #: its own onboarding flow finishes, including steps this schema never
+    #: sees (photo, genetic test). Omit to leave alone, like every other
+    #: field here; there's no reason to ever send `null` for this one.
+    onboarding_completo: bool | None = None
 
 
 class HealthContextOut(BaseModel):
@@ -130,6 +136,7 @@ class HealthContextOut(BaseModel):
     objetivos_usuario: list[str] | None
     datos_faltantes: list[str] | None
     notas_incertidumbre: str | None
+    onboarding_completo: bool
 
 
 #: `demografia` and `habitos` are objects the caller fills in one field at a

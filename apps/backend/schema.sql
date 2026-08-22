@@ -139,10 +139,21 @@ create table if not exists public.health_context (
     objetivos_usuario    jsonb,
     datos_faltantes      jsonb,
     notas_incertidumbre  text,
+    -- Set explicitly by the app when its onboarding flow finishes, not
+    -- derived from field coverage -- onboarding covers app-only steps
+    -- (nationality, alcohol, supplements, photo, genetic test) this schema
+    -- never sees. What a new device/reinstall checks to skip onboarding
+    -- for a user who already did it elsewhere.
+    onboarding_completo  boolean not null default false,
 
     created_at           timestamptz not null default now(),
     updated_at           timestamptz not null default now()
 );
+
+-- Column added after health_context already existed on some databases --
+-- create table if not exists above is a no-op for an existing table, so an
+-- already-provisioned database needs this added explicitly.
+alter table public.health_context add column if not exists onboarding_completo boolean not null default false;
 
 alter table public.health_context enable row level security;
 

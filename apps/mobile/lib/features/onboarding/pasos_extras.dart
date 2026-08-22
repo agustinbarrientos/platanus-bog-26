@@ -32,6 +32,9 @@ class _PasoWearablesState extends ConsumerState<PasoWearables> {
   int _diasConDatos = 0;
   String? _aviso;
 
+  /// Solo cuando falta Health Connect: ofrezco el atajo a la tienda.
+  bool _puedeInstalar = false;
+
   @override
   void initState() {
     super.initState();
@@ -42,15 +45,17 @@ class _PasoWearablesState extends ConsumerState<PasoWearables> {
     setState(() {
       _estado = _EstadoW.leyendo;
       _aviso = null;
+      _puedeInstalar = false;
     });
     final repo = ref.read(wearablesRepositoryProvider);
     try {
-      final ok = await repo.conectar();
-      if (!ok) {
+      final r = await repo.conectar();
+      if (!r.ok) {
         if (!mounted) return;
         setState(() {
           _estado = _EstadoW.sinAcceso;
-          _aviso = 'No pude leer Health Connect o Salud en este dispositivo. Puedes seguir sin esto y conectarlo luego desde tu perfil.';
+          _aviso = '${r.mensaje(repo.proveedorLabel)} Puedes seguir sin esto y conectarlo luego desde tu perfil.';
+          _puedeInstalar = r.puedeInstalar;
         });
         return;
       }
@@ -185,7 +190,16 @@ class _PasoWearablesState extends ConsumerState<PasoWearables> {
         ),
         if (_aviso != null) ...[
           const SizedBox(height: Sp.x4),
-          MoNotice(tone: listo ? MoTone.brand : MoTone.watch, text: _aviso!).animate().fadeIn(duration: Motion.base),
+          MoNotice(
+            tone: listo ? MoTone.brand : MoTone.watch,
+            text: _aviso!,
+            action: _puedeInstalar
+                ? TextButton(
+                    onPressed: () => ref.read(wearablesRepositoryProvider).instalarProveedor(),
+                    child: const Text('Instalar'),
+                  )
+                : null,
+          ).animate().fadeIn(duration: Motion.base),
         ],
         const SizedBox(height: Sp.x5),
         const MoFootnote('Solo leo. Nunca escribo nada en tus datos de salud.', center: false),
