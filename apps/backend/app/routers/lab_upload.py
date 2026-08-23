@@ -74,11 +74,15 @@ def _merge_notas(existente: str | None, hallazgos: list[str]) -> str | None:
     """Appends whatever non-biomarker findings this extraction turned up to
     the existing free-text notes — never overwrites, since a second upload
     (or a manual `PATCH .../notas_incertidumbre`) shouldn't erase what an
-    earlier one recorded."""
-    if not hallazgos:
+    earlier one recorded. Skips any finding already present verbatim, so
+    re-uploading the same document (a retry, or front/back of one report
+    submitted twice) doesn't duplicate it into the notes forever."""
+    ya_presentes = set(existente.split("; ")) if existente else set()
+    nuevas = [h for h in hallazgos if h not in ya_presentes]
+    if not nuevas:
         return existente
-    nuevas = "; ".join(hallazgos)
-    return f"{existente}; {nuevas}" if existente else nuevas
+    agregado = "; ".join(nuevas)
+    return f"{existente}; {agregado}" if existente else agregado
 
 
 class BiomarkerExtractionOut(BaseModel):
