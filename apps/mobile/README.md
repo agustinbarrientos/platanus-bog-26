@@ -31,6 +31,7 @@ flutter run --dart-define=USE_MOCK_ENGINE=true                                 #
 | Biomarcadores | Real (`PATCH /me/health-context.biomarcadores`, `POST …/biomarkers/extract` con Claude) + copia local |
 | Edad biológica y Monte Carlo | Real (`/phenoage` + `/montecarlo`); la curva por año, las trayectorias finas, el "por qué" (SHAP) y el percentil poblacional se aproximan en el dispositivo |
 | Chat "Pregúntame" | Real (`/chat`, RAG en el backend: la app manda el resultado compacto + `enfoque` y muestra las `fuentes` usadas bajo cada respuesta; en modo mock responde con plantillas locales sobre el resultado) |
+| Voz en "Pregúntame" | Real (`/me/voice/tts` + `/stt`, ElevenLabs detrás del backend). Altavoz por respuesta + interruptor "leer en voz alta" + micrófono en el composer. Sin voz configurada, sin créditos o en modo mock: voz del sistema (`flutter_tts`), y el ícono lo dice |
 | Wearables | Lectura real de Health Connect / HealthKit; resumen de hábitos en local → sube a `habitos` |
 | Nacionalidad, alcohol, suplementos, foto, prueba genética, historial de simulaciones, "mi plan" | Local (`SharedPreferences`) hasta que el backend los acepte |
 
@@ -44,7 +45,7 @@ lib/
   data/
     api/               ApiClient (Bearer token, 401 → cerrar sesión), TokenStore (secure storage)
     models/            Me/Profile, OnboardingData, Biomarcador, SimulacionInput/Resultado (spec §3/§8), Chat
-    repositories/      auth, profile (+health-context), exams, simulation (phenoage+montecarlo → spec §8), chat, wearables, demo_data
+    repositories/      auth, profile (+health-context), exams, simulation (phenoage+montecarlo → spec §8), chat, voice, wearables, demo_data
     mock/              mock_engine.dart
   features/            auth, onboarding, exams, simulation, future, levers, backing, profile, report, chat, shell
   widgets/             mo.dart (MoScreen, MoCard, MoChoice…), mascot.dart, big_number.dart, fan_chart.dart, lever_card.dart

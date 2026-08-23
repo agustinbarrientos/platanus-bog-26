@@ -237,7 +237,7 @@ class MontecarloOut(BaseModel):
             "example": {
                 "edad_cronologica": 52,
                 "horizonte_anios": 10,
-                "trayectorias_por_escenario": 5000,
+                "trayectorias_por_escenario": 10000,
                 "semilla": 20260822,
                 "campos_inferidos": ["linfocitos_pct", "vcm", "fosfatasa_alcalina"],
                 "ancho_banda_hoy": 4.7,

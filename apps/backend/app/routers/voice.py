@@ -26,7 +26,7 @@ import logging
 from typing import Annotated
 
 import httpx
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.background import BackgroundTask
@@ -115,17 +115,32 @@ class EstadoVozOut(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {"disponible": True, "modelo_tts": "eleven_flash_v2_5",
-                        "modelo_stt": "scribe_v2", "max_caracteres": 1500}
+                        "modelo_stt": "scribe_v2", "max_caracteres": 1500,
+                        "voz_ok": True, "nombre_voz": "Moirai",
+                        "creditos_restantes": 8420, "motivo": None}
         }
     )
 
     #: `false` → la app esconde el altavoz y el micrófono (o usa su TTS local).
+    #: Solo dice que hay credenciales configuradas: que *sirvan* lo responde
+    #: `voz_ok`, y para eso hay que pedir `?verificar=true`.
     disponible: bool
     modelo_tts: str
     modelo_stt: str
     #: Techo de `texto` en `/tts`; por encima se recorta en la última frase
     #: que quepa, no a mitad de palabra.
     max_caracteres: int
+
+    #: Solo con `?verificar=true`. `true` = la key sirve y el voice_id existe
+    #: en esta cuenta. `null` = no se verificó.
+    voz_ok: bool | None = None
+    #: Nombre de la voz en ElevenLabs, para confirmar de un vistazo que es la
+    #: que creías.
+    nombre_voz: str | None = None
+    #: Créditos que le quedan al plan. `0` explica un 402 sin adivinar.
+    creditos_restantes: int | None = None
+    #: En español y accionable cuando `voz_ok` es `false`.
+    motivo: str | None = None
 
 
 class TtsIn(BaseModel):
@@ -159,13 +174,77 @@ class SttOut(BaseModel):
     confianza_idioma: float | None
 
 
+async def _verificar(api_key: str, voice_id: str) -> tuple[bool, str | None, int | None, str | None]:
+    """(voz_ok, nombre, créditos, motivo) preguntándole a ElevenLabs.
+
+    Existe porque el fallback a la voz del teléfono es silencioso por diseño
+    —en una demo vale más que suene algo que un error en pantalla— y eso
+    hace imposible distinguir "sin créditos" de "voice_id equivocado" desde
+    la app. Esto lo responde de frente.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            voz = await client.get(
+                f"{API_BASE}/voices/{voice_id}", headers={"xi-api-key": api_key}
+            )
+            if voz.status_code in (401, 403):
+                return False, None, None, (
+                    "la ELEVENLABS_API_KEY es inválida o no tiene el permiso de lectura de voces"
+                )
+            if voz.status_code == 404:
+                return False, None, None, (
+                    f"el voice_id '{voice_id}' no existe en esta cuenta. Cópialo de "
+                    "elevenlabs.io → Voices → My Voices → ⋯ → Copy voice ID. Ojo: una voz de "
+                    "la Voice Library hay que agregarla a My Voices primero, y en el plan "
+                    "gratis las de la librería no sirven por API"
+                )
+            if voz.status_code >= 400:
+                return False, None, None, f"ElevenLabs respondió {voz.status_code} al pedir la voz"
+
+            nombre = str((voz.json() or {}).get("name") or "")
+
+            restantes: int | None = None
+            sub = await client.get(
+                f"{API_BASE}/user/subscription", headers={"xi-api-key": api_key}
+            )
+            if sub.status_code == 200:
+                d = sub.json() or {}
+                limite, usados = d.get("character_limit"), d.get("character_count")
+                if isinstance(limite, int) and isinstance(usados, int):
+                    restantes = max(0, limite - usados)
+
+            if restantes == 0:
+                return False, nombre, 0, "la cuenta de ElevenLabs se quedó sin créditos"
+            return True, nombre, restantes, None
+    except httpx.RequestError as exc:
+        log.error("voice.verificar_unreachable %s", exc)
+        return False, None, None, "no se pudo contactar a ElevenLabs desde este servidor"
+
+
 @router.get("/estado", summary="Whether this deployment can speak and listen")
-async def estado(user: CurrentUserDep, settings: SettingsDep) -> EstadoVozOut:
-    return EstadoVozOut(
-        disponible=bool(settings.elevenlabs_api_key and settings.elevenlabs_voice_id),
+async def estado(
+    user: CurrentUserDep,
+    settings: SettingsDep,
+    verificar: Annotated[bool, Query(description="Preguntarle a ElevenLabs si la key y el voice_id sirven de verdad")] = False,
+) -> EstadoVozOut:
+    hay_credenciales = bool(settings.elevenlabs_api_key and settings.elevenlabs_voice_id)
+    salida = EstadoVozOut(
+        disponible=hay_credenciales,
         modelo_tts=settings.tts_model,
         modelo_stt=settings.stt_model,
         max_caracteres=settings.tts_max_chars,
+    )
+    if not verificar:
+        return salida
+    if not hay_credenciales:
+        falta = "ELEVENLABS_API_KEY" if not settings.elevenlabs_api_key else "ELEVENLABS_VOICE_ID"
+        return salida.model_copy(update={"voz_ok": False, "motivo": f"falta {falta} en el entorno"})
+
+    ok, nombre, creditos, motivo = await _verificar(
+        settings.elevenlabs_api_key, settings.elevenlabs_voice_id
+    )
+    return salida.model_copy(
+        update={"voz_ok": ok, "nombre_voz": nombre or None, "creditos_restantes": creditos, "motivo": motivo}
     )
 
 

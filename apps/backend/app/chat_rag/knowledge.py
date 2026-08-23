@@ -23,6 +23,7 @@ from app.health_metrics.interventions import (
     PALANCAS,
     SCENARIOS,
 )
+from app.health_metrics.montecarlo import DEFAULT_TRAYECTORIAS
 from app.health_metrics.nhanes_reference import DISPERSION
 from app.health_metrics.phenoage import _COEF
 
@@ -267,6 +268,9 @@ def _chunk_intervencion(key: str) -> Chunk:
     )
 
 
+#: Cuántas trayectorias corre el motor por escenario, escrito en es-CO ("10.000").
+N_TRAYECTORIAS_ES = f"{DEFAULT_TRAYECTORIAS:,}".replace(",", ".")
+
 _ESTATICOS: list[Chunk] = [
     Chunk(
         id="kb:phenoage",
@@ -293,7 +297,7 @@ _ESTATICOS: list[Chunk] = [
             "actuales de la persona ajustan esa deriva (fumar, sedentarismo, dormir poco, estrés, "
             "alcohol la empeoran; tenerlos buenos la frena) y cada palanca suma un efecto anual "
             "escalado por la brecha que le queda a la persona. Capa 3, Monte Carlo: repito la capa 2 "
-            "en 5.000 trayectorias por escenario, con ruido biológico nuevo cada año, durante 10 "
+            f"en {N_TRAYECTORIAS_ES} trayectorias por escenario, con ruido biológico nuevo cada año, durante 10 "
             "años, y calculo PhenoAge en cada año de cada una; los percentiles 10, 50 (mediana) y 90 "
             "son la banda P10–P90, año a año. Los futuros están PAREADOS: cada trayectoria usa los "
             "mismos arranques y los mismos ruidos con y sin la palanca, así que los 'años ganados' "
@@ -305,7 +309,7 @@ _ESTATICOS: list[Chunk] = [
         grupo="conocimiento",
         tags=(
             "simulacion", "monte carlo", "trayectorias", "futuros", "proyeccion", "10 anos",
-            "como funciona", "motor", "capas", "5000",
+            "como funciona", "motor", "capas", "10000", "10 mil",
         ),
         prioridad=0.9,
     ),
@@ -314,7 +318,7 @@ _ESTATICOS: list[Chunk] = [
         titulo="Cómo leer el rango (banda P10–P90)",
         texto=(
             "El rango no es un intervalo de confianza estadístico: es la dispersión real que producen "
-            "en las 5.000 trayectorias (a) el ruido biológico año a año, (b) lo que no sé de la "
+            f"en las {N_TRAYECTORIAS_ES} trayectorias (a) el ruido biológico año a año, (b) lo que no sé de la "
             "persona —cada biomarcador NO medido arranca muestreado de la dispersión de su grupo de "
             "edad y sexo, por eso la banda de HOY ya tiene ancho si falta algo— y (c) la respuesta "
             "individual a cada palanca (promedio 1, ±50 %, con ~2 % de no respondedores), que es lo "
@@ -413,7 +417,7 @@ _ESTATICOS: list[Chunk] = [
             "escenario, los años ganados pareados con su rango, el porcentaje de futuros que "
             "mejoran, 40 trayectorias reales de muestra, el 'por qué' (contribución de cada "
             "biomarcador medido frente a la mediana de referencia de su edad y sexo, y de cada "
-            "hábito registrado a 10 años — tipo SHAP sobre el estado basal, no sobre las 5.000 "
+            f"hábito registrado a 10 años — tipo SHAP sobre el estado basal, no sobre las {N_TRAYECTORIAS_ES} "
             "trayectorias), el percentil poblacional y el valor de información de cada dato sin "
             "medir. Lo único que sigue siendo una aproximación local de la app es la adherencia "
             "(factores 0,25 · 0,5 · 0,8 · 1). Si la app corre contra un servidor viejo, interpola "

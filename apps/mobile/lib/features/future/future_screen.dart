@@ -9,6 +9,7 @@ import '../../app/theme/tokens.dart';
 import '../../core/format.dart';
 import '../../data/mock/mock_engine.dart';
 import '../../data/models/simulacion.dart';
+import '../../data/repositories/simulation_repository.dart';
 import '../../widgets/big_number.dart';
 import '../../widgets/fan_chart.dart';
 import '../../widgets/lever_card.dart';
@@ -110,7 +111,7 @@ class _Header extends StatelessWidget {
         ),
         const SizedBox(height: Sp.x3),
         MoBadge(
-          '${r.escenarios.length} escenarios · ${Fmt.entero(5000)} futuros',
+          '${r.escenarios.length} escenarios · ${Fmt.entero(SimulationRepository.nTrayectorias)} futuros',
           tone: MoTone.brand,
           icon: Icons.auto_awesome_rounded,
         ),
@@ -261,8 +262,8 @@ class _ProjectionCard extends StatelessWidget {
               const SizedBox(height: Sp.x3),
               Text(
                 r.curvasDelMotor
-                    ? 'Banda P10–P90 año a año de ${Fmt.entero(5000)} trayectorias pareadas; las líneas finas son ${Fmt.entero(r.muestraTrayectorias.length)} de ellas, reales.'
-                    : 'Curva interpolada entre hoy y el año $horizonte a partir de ${Fmt.entero(5000)} trayectorias; las líneas finas son ilustrativas.',
+                    ? 'Banda P10–P90 año a año de ${Fmt.entero(SimulationRepository.nTrayectorias)} trayectorias pareadas; las líneas finas son ${Fmt.entero(r.muestraTrayectorias.length)} de ellas, reales.'
+                    : 'Curva interpolada entre hoy y el año $horizonte a partir de ${Fmt.entero(SimulationRepository.nTrayectorias)} trayectorias; las líneas finas son ilustrativas.',
                 style: t.bodySmall!.copyWith(color: MoiraiColors.ink3),
               ),
               const SizedBox(height: Sp.x4),
@@ -646,7 +647,7 @@ class _EstasBien extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: Sp.x3),
           child: Text(
-            'En serio. Revisé tus ${Fmt.entero(5000)} futuros y ninguno cambia mucho con lo que podrías hacer distinto hoy.',
+            'En serio. Revisé tus ${Fmt.entero(SimulationRepository.nTrayectorias)} futuros y ninguno cambia mucho con lo que podrías hacer distinto hoy.',
             textAlign: TextAlign.center,
             style: t.bodyLarge!.copyWith(color: MoiraiColors.ink2),
           ),

@@ -354,6 +354,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               enviando: _enviando,
               grabando: voz.grabando,
               transcribiendo: voz.transcribiendo,
+              // A diferencia de la lectura, el dictado no tiene respaldo en
+              // el dispositivo: sin `/me/voice/stt` el micrófono no aparece,
+              // en vez de aparecer y fallar.
+              micDisponible: ref.watch(vozDisponibleProvider),
               onSend: _enviar,
               onMicrofono: _alternarMicrofono,
             ),
@@ -780,6 +784,7 @@ class _Composer extends StatelessWidget {
     required this.enviando,
     required this.grabando,
     required this.transcribiendo,
+    required this.micDisponible,
     required this.onSend,
     required this.onMicrofono,
   });
@@ -789,6 +794,7 @@ class _Composer extends StatelessWidget {
   final bool enviando;
   final bool grabando;
   final bool transcribiendo;
+  final bool micDisponible;
   final ValueChanged<String> onSend;
   final VoidCallback onMicrofono;
 
@@ -820,7 +826,11 @@ class _Composer extends StatelessWidget {
                       keyboardType: TextInputType.multiline,
                       onSubmitted: enviando ? null : onSend,
                       decoration: InputDecoration(
-                        hintText: transcribiendo ? 'Entendiendo lo que dijiste…' : 'Escríbeme o tócame el micrófono',
+                        hintText: transcribiendo
+                            ? 'Entendiendo lo que dijiste…'
+                            : micDisponible
+                                ? 'Escríbeme o tócame el micrófono'
+                                : 'Escríbeme una pregunta',
                         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.card), borderSide: const BorderSide(color: MoiraiColors.line, width: 1.5)),
                         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.card), borderSide: const BorderSide(color: MoiraiColors.line, width: 1.5)),
@@ -837,7 +847,7 @@ class _Composer extends StatelessWidget {
                 // cuando sí. Es el gesto que la gente ya conoce, y deja el
                 // área táctil de 50 px en vez de partirla en dos botones.
                 final hayTexto = controller.text.trim().isNotEmpty;
-                final esMicro = !hayTexto && !enviando;
+                final esMicro = micDisponible && !hayTexto && !enviando;
                 final ocupado = enviando || transcribiendo;
 
                 return SizedBox(

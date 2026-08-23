@@ -28,7 +28,7 @@ class SimulationRepository {
   final SharedPreferences _prefs;
 
   static const horizonte = 10;
-  static const nTrayectorias = 5000;
+  static const nTrayectorias = 10000;
 
   /// Cómo nombra la app cada palanca del backend (tono de la mascota). Una
   /// palanca que el backend agregue y no esté aquí usa el nombre que él manda.

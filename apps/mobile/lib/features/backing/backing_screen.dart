@@ -75,7 +75,7 @@ class BackingScreen extends ConsumerWidget {
           numero: 3,
           icon: Icons.blur_on_rounded,
           titulo: 'Monte Carlo',
-          texto: 'Corro la capa 2 5.000 veces con ruido biológico, sorteando lo que no medí y la respuesta de cada futuro, pareando cada vida con y sin la palanca. El abanico P10–P90 es lo que no sé de ti, dicho en voz alta.',
+          texto: 'Corro la capa 2 ${Fmt.entero(SimulationRepository.nTrayectorias)} veces con ruido biológico, sorteando lo que no medí y la respuesta de cada futuro, pareando cada vida con y sin la palanca. El abanico P10–P90 es lo que no sé de ti, dicho en voz alta.',
           tone: MoTone.watch,
           extra: Padding(
             padding: const EdgeInsets.only(top: Sp.x4),

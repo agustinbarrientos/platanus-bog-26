@@ -46,7 +46,6 @@ enum _Paso {
   suplementos,
   wearables,
   foto,
-  genetica,
   resumen,
 }
 
@@ -59,7 +58,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   static const _pasos = _Paso.values;
 
   /// Pasos con datos (el resumen no cuenta).
-  static const _datos = 14;
+  static const _datos = 13;
 
   final _page = PageController();
   int _i = 0;
@@ -387,7 +386,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       _Paso.resumen => 'Listo, sigamos',
       _Paso.wearables => ob.wearableConectado ? 'Siguiente' : 'Lo hago después',
       _Paso.foto => ob.fotoPath != null ? 'Siguiente' : 'Lo hago después',
-      _Paso.genetica => ob.geneticaPath != null ? 'Siguiente' : 'Lo hago después',
       _ => 'Siguiente',
     };
     return Row(
@@ -426,7 +424,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             'Leo sueño, pasos y ejercicio desde Health Connect (Android) o Salud (iOS); cualquier reloj que sincronice ahí me sirve.',
           ),
         _Paso.foto => ('Una foto tuya', 'Opcional. Por ahora solo la guardo para tu perfil.'),
-        _Paso.genetica => ('¿Tienes una prueba genética?', 'Si tienes una prueba genética en PDF, guárdala aquí. Más adelante la analizo contigo.'),
         _Paso.resumen => ('Con esto ya puedo empezar', 'Esto es lo que me contaste. Lo siguiente son tus exámenes, si los tienes.'),
       };
 
@@ -477,7 +474,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         _Paso.suplementos => const [PasoSuplementos()],
         _Paso.wearables => const [PasoWearables()],
         _Paso.foto => const [PasoFoto()],
-        _Paso.genetica => const [PasoGenetica()],
         _Paso.resumen => [
             PasoResumen(
               basico: (

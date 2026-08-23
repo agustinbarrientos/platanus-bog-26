@@ -412,7 +412,7 @@ approximate on the device: the *por qué* and the population percentile.
 // request — every field optional
 {
   "escenarios": ["ejercicio_aerobico", "ejercicio_aerobico+sueno_8h"],  // omit → what applies to this person (+ combos)
-  "n_trayectorias": 5000,   // 100–20000, default 5000
+  "n_trayectorias": 10000,  // 100–20000, default 10000
   "anios": 10,              // 1–30, default 10
   "semilla": 20260822,      // optional; omitted → fixed default (reproducible)
   "combinaciones": true     // only when `escenarios` is omitted: also pairs and triples
@@ -458,7 +458,7 @@ of a combination is the sum of its parts.
 {
   "edad_cronologica": 52,
   "horizonte_anios": 10,
-  "trayectorias_por_escenario": 5000,
+  "trayectorias_por_escenario": 10000,
   "semilla": 20260822,
   "campos_inferidos": ["linfocitos_pct", "vcm", "fosfatasa_alcalina"],
   "ancho_banda_hoy": 4.7,
@@ -572,7 +572,7 @@ that drifts:
   ],
   "habitos": ["actividad", "alimentacion", "tabaco", "sueno", "estres", "alcohol"],
   "combinacion": {"descuento_por_palanca_adicional": 0.08, "max_intervenciones": 3, "heterogeneidad_respuesta_sd": 0.5},
-  "defaults": {"n_trayectorias": 5000, "anios": 10, "semilla": 20260822, "muestra_trayectorias": 40}
+  "defaults": {"n_trayectorias": 10000, "anios": 10, "semilla": 20260822, "muestra_trayectorias": 40}
 }
 ```
 
@@ -601,13 +601,13 @@ referencia", never as a condition.
 ### `POST /me/health-context/reporte` → `200`
 Optional body (all defaults = what the app used for the simulation):
 ```json
-{"n_trayectorias": 5000, "anios": 10, "semilla": null, "resumen": false}
+{"n_trayectorias": 10000, "anios": 10, "semilla": null, "resumen": false}
 ```
 Response (`ReporteOut`; abridged — every section is what the PDF prints):
 ```json
 {
   "meta": {"id": "rep_7f3a9c21", "generado_en": "2026-08-22T20:11:03+00:00", "version_motor": "0.3.0",
-           "semilla": 20260822, "trayectorias_por_escenario": 5000, "horizonte_anios": 10,
+           "semilla": 20260822, "trayectorias_por_escenario": 10000, "horizonte_anios": 10,
            "disclaimer": "Documento orientativo, no diagnóstico. …", "privacidad": "Datos procesados de forma privada; …",
            "fuentes": ["Levine ME, et al. … Aging 2018 (PhenoAge).", "NHANES (CDC): …", "…"]},
   "persona": {"nombre": "Ana Rueda", "edad": 34, "sexo": "F", "ancestria": "mixta_latam"},
@@ -867,9 +867,28 @@ mid-demo.
   "disponible": true,
   "modelo_tts": "eleven_flash_v2_5",
   "modelo_stt": "scribe_v2",
-  "max_caracteres": 1500
+  "max_caracteres": 1500,
+  "voz_ok": null, "nombre_voz": null, "creditos_restantes": null, "motivo": null
 }
 ```
+
+`disponible` solo dice que **hay** credenciales en el entorno, no que
+sirvan. Para saber si sirven, `?verificar=true` — le pregunta a ElevenLabs y
+responde en español qué está mal:
+
+```
+GET /me/voice/estado?verificar=true
+{ "disponible": true, "voz_ok": false, "nombre_voz": null, "creditos_restantes": null,
+  "motivo": "el voice_id 'xxx' no existe en esta cuenta. Cópialo de elevenlabs.io → …" }
+```
+
+**Úsalo cuando la app suene con la voz del teléfono en vez de la de Moirai.**
+Ese fallback es silencioso por diseño (en una demo vale más que suene algo
+que un error en pantalla), y por eso desde la app es imposible distinguir
+"sin créditos" de "voice_id equivocado". Esto lo dice de frente. Motivos que
+distingue: falta una env var · key inválida o sin permisos · el `voice_id` no
+existe en la cuenta · sin créditos · ElevenLabs inalcanzable desde el server.
+No lo llames en cada arranque: son dos requests extra a ElevenLabs.
 
 ### `POST /me/voice/tts` → `200`, `audio/mpeg`
 A chat reply, spoken. Send the `reply` from `/me/health-context/chat`

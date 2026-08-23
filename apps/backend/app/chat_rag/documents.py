@@ -29,6 +29,7 @@ from app.chat_rag.knowledge import (
     ALIAS_INTERVENCION,
     KNOWLEDGE,
     NOMBRE_BIOMARCADOR,
+    N_TRAYECTORIAS_ES,
     direccion_en_phenoage,
 )
 from app.health_metrics.biomarkers import BIOMARKER_SPECS, PHENOAGE_BIOMARKERS
@@ -431,7 +432,7 @@ def result_chunks(resultado: Mapping[str, Any] | None) -> list[Chunk]:
     out.append(Chunk(
         id="sim:resumen", titulo="Tu última simulación, en resumen",
         texto=(
-            f"Última simulación{f' ({fecha})' if fecha else ''}: 5.000 futuros por escenario, horizonte "
+            f"Última simulación{f' ({fecha})' if fecha else ''}: {N_TRAYECTORIAS_ES} futuros por escenario, horizonte "
             f"{horizonte} años. Edad biológica hoy {fmt_num(hoy)}"
             + (f" (edad cronológica {fmt_num(cron)})" if cron is not None else "") + ". "
             + (

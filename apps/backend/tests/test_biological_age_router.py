@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 
 from app.auth import CurrentUser, get_current_user
 from app.db import get_db
+from app.health_metrics import montecarlo
 from app.main import create_app
 from app.models import HealthContext, Profile
 from tests.test_chat_rag import CONTEXT
@@ -170,6 +171,6 @@ def test_catalogo_del_motor_es_publico_y_coherente(client):
     assert [p["id"] for p in j["palancas"]] == ["ejercicio_aerobico", "dieta_mediterranea", "cesacion_tabaco", "sueno_8h", "reducir_estres", "reducir_alcohol"]
     for p in j["palancas"]:
         assert p["habito"] and p["descripcion"] and 1 <= p["esfuerzo"] <= 10 and p["efectos_anuales"]
-    assert j["combinacion"]["max_intervenciones"] == 3 and j["defaults"]["n_trayectorias"] == 5000
+    assert j["combinacion"]["max_intervenciones"] == 3 and j["defaults"]["n_trayectorias"] == montecarlo.DEFAULT_TRAYECTORIAS
     # Sin token también responde (constantes, nada personal).
     assert TestClient(create_app()).get("/engine/catalogo").status_code == 200
