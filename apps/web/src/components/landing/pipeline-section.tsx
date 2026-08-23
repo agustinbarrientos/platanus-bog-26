@@ -1,6 +1,7 @@
 "use client";
 
-import { miniCurves } from "@/lib/moirai/curves";
+import { bigCurves, HIST_HI, HIST_LO } from "@/lib/moirai/curves";
+import { formatEsCO1 } from "@/lib/moirai/format";
 import { pinStyle, shallowEqual, useMoiraiScroll } from "@/lib/moirai/scroll-store";
 
 import { CheckIcon, LeversIcon, RangeIcon } from "./icons";
@@ -15,6 +16,9 @@ import { clamp } from "./reveal";
  */
 
 const F = "var(--font-fredoka), system-ui, sans-serif";
+
+/** The engine's histogram is laid out 1016 wide; this card draws it at 260. */
+const KX = 260 / 1016;
 
 const BIOMARKERS = [
   { name: "Colesterol total", value: "212", dot: "#4CC48C" },
@@ -45,7 +49,7 @@ export function PipelineSection() {
     (s) => ({ pr: s.prog.story, pin2: s.pin2 }),
     shallowEqual,
   );
-  const mini = miniCurves();
+  const B = bigCurves();
 
   const flat = clamp(pr / 0.3);
   const skew = 1 - flat;
@@ -54,7 +58,7 @@ export function PipelineSection() {
 
   return (
     <section id="rvA" className="mo-pin-sec" style={{ height: "340vh" }}>
-      <div className="mo-pin-panel" style={{ ...pinStyle(pin2), padding: "70px 28px 18px" }}>
+      <div className="mo-pin-panel" style={{ ...pinStyle(pin2), padding: "56px 28px 18px" }}>
         <div className="mo-pin-panel__inner" style={{ gap: 10 }}>
           <div>
             <h2 className="mo-h2" style={{ fontSize: 44, lineHeight: 1.06, maxWidth: 700, marginBottom: 8 }}>
@@ -76,7 +80,7 @@ export function PipelineSection() {
               </div>
               <div
                 style={{
-                  height: 196,
+                  height: 300,
                   borderRadius: 20,
                   background: "#F4F8FA",
                   display: "flex",
@@ -131,11 +135,11 @@ export function PipelineSection() {
               </div>
               <div
                 style={{
-                  height: 196,
+                  height: 300,
                   display: "flex",
                   flexDirection: "column",
                   justifyContent: "center",
-                  gap: 11,
+                  gap: 30,
                 }}
               >
                 {BIOMARKERS.map((b, i) => {
@@ -178,7 +182,7 @@ export function PipelineSection() {
               </div>
               <div
                 style={{
-                  height: 196,
+                  height: 300,
                   display: "flex",
                   flexDirection: "column",
                   justifyContent: "flex-end",
@@ -186,72 +190,81 @@ export function PipelineSection() {
                   overflow: "hidden",
                 }}
               >
-                <svg
-                  viewBox="0 0 260 96"
-                  preserveAspectRatio="none"
-                  style={{ width: "100%", height: 130, display: "block" }}
-                >
-                  {Array.from({ length: 14 }, (_, i) => {
-                    const be = clamp((chart - (i / 14) * 0.75) / 0.16);
-                    const h = (18 + 62 * Math.pow(i / 13, 1.5)) * be;
+                <svg viewBox="0 0 260 180" style={{ width: "100%", height: "auto", display: "block" }}>
+                  {B.bars.map((b, i) => {
+                    const be = clamp((chart - (i / B.bars.length) * 0.72) / 0.16);
+                    const h = (b.h / 300) * 132 * be;
                     return (
                       <rect
                         key={i}
-                        x={(i * 18.6 + 2).toFixed(1)}
-                        y={(96 - h).toFixed(1)}
-                        width={14.6}
+                        x={(+b.x * KX).toFixed(1)}
+                        y={(156 - h).toFixed(1)}
+                        width={(+b.w * KX).toFixed(1)}
                         height={h.toFixed(1)}
-                        rx={3}
+                        rx={2.5}
                         fill="#8AC7EF"
-                        opacity={(be * 0.5).toFixed(2)}
                       />
                     );
                   })}
-                  <path
-                    d={mini.bandWide}
-                    fill="#52A9E2"
-                    opacity={(clamp((chart - 0.55) / 0.4) * 0.18).toFixed(3)}
-                  />
-                  <path
-                    d={mini.medWide}
-                    fill="none"
+                  {([B.x10, B.x90] as const).map((x) => (
+                    <line
+                      key={x}
+                      x1={(+x * KX).toFixed(1)}
+                      y1={44}
+                      x2={(+x * KX).toFixed(1)}
+                      y2={156}
+                      stroke="#1E6EA9"
+                      strokeWidth={1.2}
+                      strokeDasharray="3 4"
+                      opacity={(clamp((chart - 0.66) / 0.2) * 0.8).toFixed(2)}
+                    />
+                  ))}
+                  <line
+                    x1={(+B.x50 * KX).toFixed(1)}
+                    y1={26}
+                    x2={(+B.x50 * KX).toFixed(1)}
+                    y2={156}
                     stroke="#1E6EA9"
-                    strokeWidth={3}
-                    strokeLinecap="round"
-                    strokeDasharray={420}
-                    strokeDashoffset={(420 * (1 - clamp((chart - 0.45) / 0.5))).toFixed(0)}
+                    strokeWidth={2.2}
+                    opacity={clamp((chart - 0.62) / 0.2).toFixed(2)}
                   />
                   <line
                     x1={(chart * 258).toFixed(1)}
                     y1={0}
                     x2={(chart * 258).toFixed(1)}
-                    y2={96}
+                    y2={156}
                     stroke="#2C8BCF"
-                    strokeWidth={1.6}
-                    opacity={scanning ? 0.85 : 0}
+                    strokeWidth={1.4}
+                    opacity={scanning ? 0.7 : 0}
                   />
-                  <circle
-                    cx={(chart * 258).toFixed(1)}
-                    cy={(14 + 66 * Math.pow(chart, 1.6)).toFixed(1)}
-                    r={3.4}
-                    fill="#2C8BCF"
-                    opacity={scanning ? 0.85 : 0}
-                  />
+                  <line x1={0} y1={156} x2={260} y2={156} stroke="#E9EFF3" strokeWidth={1.4} />
+                  <text x={0} y={172} fill="#B5C2CC" style={{ fontWeight: 700, fontSize: 10 }}>
+                    {HIST_LO}
+                  </text>
+                  <text
+                    x={260}
+                    y={172}
+                    fill="#B5C2CC"
+                    textAnchor="end"
+                    style={{ fontWeight: 700, fontSize: 10 }}
+                  >
+                    {HIST_HI}
+                  </text>
                 </svg>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
                   <span
                     className="mo-tnum"
-                    style={{ fontFamily: F, fontWeight: 600, fontSize: 40, lineHeight: 1, color: "#1E6EA9" }}
+                    style={{ fontFamily: F, fontWeight: 600, fontSize: 38, lineHeight: 1, color: "#1E6EA9" }}
                   >
-                    {Math.round(68 * clamp((chart - 0.5) / 0.45))}
+                    {formatEsCO1(B.p50 * clamp((chart - 0.45) / 0.45))}
                   </span>
                   <span style={{ fontFamily: F, fontWeight: 500, fontSize: 14, color: "#4F5D69" }}>
-                    años sanos
+                    de edad biológica
                   </span>
                 </div>
               </div>
               <div className="mo-pipe__note">
-                Estimación, no diagnóstico. Entre 61 y 75 años.
+                Estimación, no diagnóstico. Entre {formatEsCO1(B.p10)} y {formatEsCO1(B.p90)} a diez años.
               </div>
             </div>
           </div>

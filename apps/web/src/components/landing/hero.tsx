@@ -2,6 +2,8 @@
 
 import Image from "next/image";
 
+import { bigCurves } from "@/lib/moirai/curves";
+import { formatEsCO1 } from "@/lib/moirai/format";
 import { useMoiraiScroll } from "@/lib/moirai/scroll-store";
 
 import { ScreenAdherenceHero, ScreenCalibrationHero, ScreenFuture } from "./hero-screens";
@@ -13,6 +15,9 @@ const SCREENS = [ScreenFuture, ScreenAdherenceHero, ScreenCalibrationHero];
 export function Hero() {
   const scr = useMoiraiScroll((s) => s.scr);
   const android = useMoiraiScroll((s) => s.android);
+  // Off the same curves the engine section draws: a visitor who scrolls from
+  // here to the chart must not meet two different numbers for one claim.
+  const B = bigCurves();
 
   return (
     <div id="top" className="mo-hero">
@@ -43,11 +48,11 @@ export function Hero() {
       <div className="mo-hero__row">
         <div className="mo-hero__col">
           <h1 className="mo-hero__title">
-            Conoce tus años sanos, <span style={{ color: "#2C8BCF" }}>y cómo sumar más.</span>
+            Cuánto puedes frenar <span style={{ color: "#2C8BCF" }}>el reloj de tu cuerpo.</span>
           </h1>
           <p className="mo-hero__lede">
-            Sube tu examen y contesta unas preguntas. Simulo tu vida diez mil veces, te digo qué
-            enfermedades son probables y qué puedes hacer.
+            Sube tu examen y contesta unas preguntas. Simulo diez mil futuros tuyos y te digo qué
+            decisión le quita más años a tu cuerpo.
           </p>
 
           <div className="mo-hero__actions">
@@ -130,9 +135,9 @@ export function Hero() {
             <div className="mo-pill">
               <span className="mo-pill__dot" style={{ background: "#4CC48C" }} />
               <span className="mo-pill__num" style={{ color: "#1B8659" }}>
-                +4,2
+                +{formatEsCO1(B.delta)}
               </span>
-              <span>años sanos</span>
+              <span>años que te ahorras</span>
             </div>
           </div>
           <div
@@ -141,7 +146,7 @@ export function Hero() {
           >
             <div className="mo-pill">
               <span className="mo-pill__num" style={{ color: "#1E6EA9" }}>
-                87%
+                {B.pctMejoran}%
               </span>
               <span>de tus futuros mejoran</span>
             </div>

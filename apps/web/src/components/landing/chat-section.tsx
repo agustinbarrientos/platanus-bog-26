@@ -1,5 +1,7 @@
 "use client";
 
+import { bigCurves } from "@/lib/moirai/curves";
+import { formatEsCO1 } from "@/lib/moirai/format";
 import { pinStyle, shallowEqual, useMoiraiScroll } from "@/lib/moirai/scroll-store";
 
 import { ArrowRightIcon } from "./icons";
@@ -14,14 +16,19 @@ import { Mascot } from "./mascot";
 
 const F = "var(--font-fredoka), system-ui, sans-serif";
 
+/**
+ * The reply quotes the lever the engine section simulates, read off the same
+ * curves. Moirai answering with a number the chart does not show is exactly
+ * the contradiction a technical judge finds by opening both at once.
+ */
 const SCRIPT = [
   { from: "user", text: "No puedo con las dos: ¿camino o cuido la comida?" },
   {
     from: "moirai",
-    text: "Caminar. En tus futuros suma +3,1 años sanos y bajar la sal suma +0,9, porque hoy tu presión pesa más que tu colesterol.",
+    text: `Caminar. En tus futuros te ahorra ${formatEsCO1(bigCurves().delta)} años de edad biológica y la dieta mediterránea 0,5. Es la palanca que más mueve tu simulación.`,
   },
   { from: "user", text: "¿Y si solo lo sostengo tres meses?" },
-  { from: "moirai", text: "Te quedan +0,6 años sanos. Es poco, pero no es cero: nunca es cero." },
+  { from: "moirai", text: "Te quedan 0,6 años. Es poco, pero no es cero: nunca es cero." },
 ] as const;
 
 const TOTAL = SCRIPT.reduce((n, m) => n + m.text.length, 0);
@@ -30,7 +37,7 @@ const OFFSETS = SCRIPT.map((_, i) =>
   SCRIPT.slice(0, i).reduce((n, m) => n + m.text.length, 0),
 );
 
-const PROMPTS = ["¿Por dónde empiezo?", "¿Cuánto pesa mi presión?", "¿Y si no lo sostengo?"];
+const PROMPTS = ["¿Por dónde empiezo?", "¿Cuál palanca me sirve más?", "¿Y si no lo sostengo?"];
 
 export function ChatSection() {
   const { prog, pin3 } = useMoiraiScroll(

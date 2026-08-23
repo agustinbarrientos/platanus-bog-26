@@ -664,7 +664,9 @@ html:has(.moirai) {
   gap: 14px;
 }
 .mo-chat__log {
-  min-height: 330px;
+  /* The panel around this is a full viewport tall and centres its content, so
+     a short card leaves a hole at both seams. Fill the scene instead. */
+  min-height: 460px;
   display: flex;
   flex-direction: column;
   gap: 11px;
@@ -875,7 +877,7 @@ html:has(.moirai) {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 13px 0;
+  padding: 22px 0;
   font-weight: 600;
   font-size: 14px;
   line-height: 1.4;

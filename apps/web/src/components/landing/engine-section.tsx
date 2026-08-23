@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { bigCurves } from "@/lib/moirai/curves";
-import { formatEsCO } from "@/lib/moirai/format";
+import { bigCurves, gapY, HIST_HI, HIST_LO, type BigCurves } from "@/lib/moirai/curves";
+import { formatEsCO, formatEsCO1 } from "@/lib/moirai/format";
 import {
   pickStage,
   pinStyle,
@@ -15,11 +15,13 @@ import {
 import { ChevronLeftIcon, ChevronRightIcon, NudgeArrowIcon } from "./icons";
 
 /**
- * "Cuántos años sanos tienes por delante" — the pinned engine scene.
+ * "Qué edad tendrá tu cuerpo en diez años" — the pinned engine scene.
  *
  * Scrolling through the section walks three views of the same simulation:
- * the trajectories being drawn one by one, the distribution they collapse
- * into, and the calibration curve that says how often the range was right.
+ * the biological-age trajectories drawn one by one, the distribution they
+ * collapse into at the ten-year horizon, and the paired counterfactual —
+ * the same futures re-run with one lever changed. Every number in the
+ * captions is read off the curves, so the words cannot drift from the chart.
  * Tapping a pill hands control to that stage for a few seconds.
  */
 
@@ -27,26 +29,50 @@ const F = "var(--font-fredoka), system-ui, sans-serif";
 const clamp = (x: number) => Math.max(0, Math.min(1, x));
 
 const PILLS: { stage: Stage; label: string }[] = [
-  { stage: 1, label: "Tus vidas posibles" },
-  { stage: 2, label: "Tu rango" },
-  { stage: 3, label: "Qué tan bien acierto" },
+  { stage: 1, label: "Tus diez mil futuros" },
+  { stage: 2, label: "Dónde caes" },
+  { stage: 3, label: "Qué cambia si cambias algo" },
 ];
 
-const CAPTIONS: Record<Stage, (local: number) => string> = {
-  1: (l) =>
+const CAPTIONS: Record<Stage, (local: number, c: BigCurves) => string> = {
+  1: (l, c) =>
     l < 0.45
-      ? "Cada trazo es una vida posible."
+      ? "Cada trazo es un futuro posible tuyo."
       : l < 0.8
-        ? "Una enfermedad cambia todo lo que viene después."
-        : "Mediana de 68 años sanos, con un rango de 61 a 75.",
-  2: (l) =>
+        ? "En unos tu cuerpo envejece más rápido que en otros."
+        : `A diez años, tu edad biológica mediana es ${formatEsCO1(c.p50)}.`,
+  2: (l, c) =>
     l < 0.6
-      ? "Las diez mil vidas, en un solo gráfico."
-      : "Casi siempre caes entre los 61 y los 75 años.",
-  3: () => "Me probé contra 5.000 personas que ya vivieron esto.",
+      ? "Los diez mil futuros, en un solo gráfico."
+      : `Casi siempre caes entre ${formatEsCO1(c.p10)} y ${formatEsCO1(c.p90)}.`,
+  3: (l, c) =>
+    l < 0.55
+      ? "Ahora repito esos mismos futuros, cambiando una sola cosa."
+      : `Te ahorras ${formatEsCO1(c.delta)} años, y mejora en ${c.pctMejoran} de cada 100.`,
 };
 
-const axisLabel = { fontWeight: 600, fontSize: 12 } as const;
+/**
+ * Where each stage starts in the section's scroll, and how much of that scroll
+ * its animation takes. The two never add up to the next stage's start, and the
+ * leftover is the point: once a stage has finished drawing, scrolling further
+ * does nothing for most of a viewport. Without that dwell the counter flicks
+ * past 10.000 in the same frame the section hands over to the next stage, and
+ * nobody ever sees the finished picture they just scrolled through.
+ */
+const WINDOWS: Record<Stage, [from: number, span: number]> = {
+  1: [0, 0.29],
+  2: [0.4, 0.21],
+  3: [0.7, 0.21],
+};
+
+/**
+ * Type scale for text drawn inside the chart. The wide viewBox is squeezed to
+ * phone width, which shrinks every glyph in it by the same factor the layout
+ * gains; without this the axis reads at about five pixels.
+ */
+const textScale = (narrow: boolean) => (narrow ? 2.2 : 1);
+
+const axisLabel = (ts: number) => ({ fontWeight: 600, fontSize: 12 * ts }) as const;
 
 /** Matches the breakpoint where the stages become a carousel. */
 const NARROW = "(max-width: 820px)";
@@ -69,317 +95,351 @@ export function EngineSection() {
     shallowEqual,
   );
   const B = bigCurves();
+  // Where each arm's median lands at the horizon, on the gap axis. The third
+  // view plots distance from the calendar rather than absolute age, so this
+  // difference gets the full height of the chart instead of a sliver of it.
+  const baseY = gapY(B.base.p50, 360);
+  const leverY = gapY(B.lever.p50, 360);
 
   // The wide charts are 2.5:1, which is unreadable in a phone-width card, so
   // on narrow screens their drawing is stretched vertically. Only the graphics
   // group is scaled; the labels sit outside it and just move down.
-  const K = useNarrow() ? 2.1 : 1;
-  const EXTRA = 360 * (K - 1);
-  const wideBox = `0 0 1040 ${(412 + EXTRA).toFixed(0)}`;
-  const plot = `translate(12,22) scale(1,${K})`;
+  const narrow = useNarrow();
+  const K = narrow ? 2.1 : 1;
+  const TS = textScale(narrow);
+  // Everything below is derived from the stretch rather than hard-coded, so a
+  // baseline stays on the baseline and a label above the plot keeps its
+  // headroom when the type doubles. Phone screens get extra room at the top
+  // for the median label, which is 2.2x bigger there.
+  const TOP = narrow ? 56 : 22;
+  const BOTTOM = TOP + 360 * K;
+  const plot = `translate(12,${TOP}) scale(1,${K})`;
+  const axisY = BOTTOM + 1;
+  // The tick row clears the baseline by its own cap height, which grows with
+  // the type scale, so the labels never crowd the bottom of the bars.
+  const tickY = BOTTOM + 14 + 8 * TS;
+  const wideBox = `0 0 1040 ${(tickY + 8).toFixed(0)}`;
 
   // Manual picks take over from scroll; otherwise scroll picks the stage.
-  const stage: Stage = man ? man.v : p < 0.42 ? 1 : p < 0.71 ? 2 : 3;
+  const stage: Stage = man ? man.v : p < WINDOWS[2][0] ? 1 : p < WINDOWS[3][0] ? 2 : 3;
 
   // Every stage is laid out at once so the mobile carousel has no height jump;
   // each one reads the progress it would have had as the active stage.
   const localOf = (s: Stage): number => {
     if (man) return man.v === s ? manLocal : man.v > s ? 1 : 0;
-    if (s === 1) return Math.max(0.05, clamp(p / 0.4));
-    if (s === 2) return clamp((p - 0.42) / 0.26);
-    return clamp((p - 0.71) / 0.26);
+    const [from, span] = WINDOWS[s];
+    const local = clamp((p - from) / span);
+    return s === 1 ? Math.max(0.05, local) : local;
   };
 
   const simulated = Math.round(localOf(1) * 10000);
 
+  /** Ticks along the shared ten-year x axis. */
+  const XTICKS: [number, string][] = [
+    [12, "hoy"],
+    [215, "2"],
+    [418, "4"],
+    [622, "6"],
+    [825, "8"],
+    [1028, "10 años"],
+  ];
+
+  const xAxis = () => (
+    <>
+      <path d={`M12 ${axisY} L1028 ${axisY}`} stroke="#E9EFF3" strokeWidth={1.6} />
+      {XTICKS.map(([x, label], i) => (
+        <text
+          key={label}
+          x={x}
+          y={tickY}
+          fill="#8D9BA8"
+          textAnchor={i === 0 ? "start" : i === XTICKS.length - 1 ? "end" : "middle"}
+          style={axisLabel(TS)}
+        >
+          {label}
+        </text>
+      ))}
+    </>
+  );
+
   const chart = (s: Stage) => {
     const lo = localOf(s);
     const st = (a: number, b: number) => clamp((lo - a) / (b - a));
+
     if (s === 1)
       return (
+        <svg viewBox={wideBox} style={{ width: "100%", display: "block" }}>
+          <g transform={plot}>
+            {[40, 120, 200, 280].map((y) => (
+              <line key={y} x1={0} y1={y} x2={1016} y2={y} stroke="#F4F8FA" strokeWidth={1.4} />
+            ))}
+            <path d={B.band} fill="#52A9E2" opacity={(st(0.64, 0.76) * 0.18).toFixed(3)} />
+            {B.lines.map((o, i) => {
+              const lp = clamp((lo - (i / B.lines.length) * 0.8) / 0.2);
+              const live = lp > 0.02 && lp < 0.999;
+              // Measuring a dash pattern along a forty-segment spline is the
+              // expensive part of this frame, and a finished line does not
+              // need one, so drop the attributes once it is fully drawn.
+              const drawing = lp > 0 && lp < 0.999;
+              return (
+                <path
+                  key={i}
+                  d={o.d}
+                  fill="none"
+                  stroke={live ? "#2C8BCF" : "#8AC7EF"}
+                  strokeWidth={live ? 2.8 : 1.5}
+                  strokeLinecap="round"
+                  strokeDasharray={drawing ? o.len.toFixed(0) : undefined}
+                  strokeDashoffset={drawing ? (o.len * (1 - lp)).toFixed(0) : undefined}
+                  opacity={lp > 0 ? (live ? 0.8 : 0.3) : 0}
+                />
+              );
+            })}
+            {B.lines.map((o, i) => {
+              const lp = clamp((lo - (i / B.lines.length) * 0.8) / 0.2);
+              return (
+                <ellipse
+                  key={i}
+                  cx={o.end[0].toFixed(1)}
+                  cy={o.end[1].toFixed(1)}
+                  rx={3.4}
+                  ry={3.4 / K}
+                  fill="#8AC7EF"
+                  opacity={lp > 0.999 ? 0.4 : 0}
+                />
+              );
+            })}
+            <path
+              d={B.med}
+              fill="none"
+              stroke="#1E6EA9"
+              strokeWidth={3.4}
+              strokeLinecap="round"
+              strokeDasharray={B.medLen.toFixed(0)}
+              strokeDashoffset={(B.medLen * (1 - st(0.68, 0.88))).toFixed(0)}
+            />
+            <ellipse
+              cx={B.markX}
+              cy={B.markY}
+              rx={15}
+              ry={15 / K}
+              fill="#1E6EA9"
+              opacity={(st(0.9, 0.99) * 0.22).toFixed(3)}
+            />
+            <ellipse
+              cx={B.markX}
+              cy={B.markY}
+              rx={7}
+              ry={7 / K}
+              fill="#1E6EA9"
+              opacity={st(0.9, 0.99).toFixed(2)}
+            />
+            <text
+              x={1000}
+              y={+B.markY * K - 22}
+              transform={`scale(1,${1 / K})`}
+              fill="#1E6EA9"
+              textAnchor="end"
+              style={{ fontFamily: F, fontWeight: 600, fontSize: 17 * TS }}
+              opacity={st(0.9, 0.99).toFixed(2)}
+            >
+              {formatEsCO1(B.p50)}
+            </text>
+          </g>
+          <text x={12} y={TOP - 4} fill="#B5C2CC" style={{ fontWeight: 700, fontSize: 11 * TS }}>
+            edad biológica
+          </text>
+          {xAxis()}
+        </svg>
+      );
+
+    if (s === 2)
+      return (
+        <svg viewBox={wideBox} style={{ width: "100%", display: "block" }}>
+          <g transform={plot}>
+            {B.bars.map((b, i) => {
+              const grow = clamp((lo - (i / B.bars.length) * 0.5) / 0.18);
+              return (
+                <rect
+                  key={i}
+                  x={b.x}
+                  y={(360 - b.h * grow).toFixed(1)}
+                  width={b.w}
+                  height={(b.h * grow).toFixed(1)}
+                  rx={7}
+                  fill="#8AC7EF"
+                />
+              );
+            })}
+            <line
+              x1={B.x50}
+              y1={0}
+              x2={B.x50}
+              y2={360}
+              stroke="#1E6EA9"
+              strokeWidth={3}
+              opacity={st(0.66, 0.86).toFixed(2)}
+            />
+            {[B.x10, B.x90].map((x) => (
+              <line
+                key={x}
+                x1={x}
+                y1={40}
+                x2={x}
+                y2={360}
+                stroke="#1E6EA9"
+                strokeWidth={1.6}
+                strokeDasharray="4 6"
+                opacity={st(0.66, 0.86).toFixed(2)}
+              />
+            ))}
+            <text
+              x={B.x50}
+              y={-4 * K}
+              transform={`scale(1,${1 / K})`}
+              fill="#1E6EA9"
+              textAnchor="middle"
+              style={{ fontFamily: F, fontWeight: 600, fontSize: 15 * TS }}
+              opacity={st(0.66, 0.86).toFixed(2)}
+            >
+              {formatEsCO1(B.p50)}
+            </text>
+            {([[B.x10, B.p10], [B.x90, B.p90]] as const).map(([x, v]) => (
+              <text
+                key={x}
+                x={x}
+                y={30 * K}
+                transform={`scale(1,${1 / K})`}
+                fill="#8D9BA8"
+                textAnchor="middle"
+                style={{ fontWeight: 700, fontSize: 11.5 * TS }}
+                opacity={st(0.66, 0.86).toFixed(2)}
+              >
+                {formatEsCO1(v)}
+              </text>
+            ))}
+          </g>
+          <path d={`M12 ${axisY} L1028 ${axisY}`} stroke="#E9EFF3" strokeWidth={1.6} />
+          <text x={12} y={tickY} fill="#8D9BA8" style={axisLabel(TS)}>
+            {HIST_LO}
+          </text>
+          <text x={520} y={tickY} fill="#8D9BA8" textAnchor="middle" style={axisLabel(TS)}>
+            edad biológica en 10 años
+          </text>
+          <text x={1028} y={tickY} fill="#8D9BA8" textAnchor="end" style={axisLabel(TS)}>
+            {HIST_HI}
+          </text>
+        </svg>
+      );
+
+    return (
       <svg viewBox={wideBox} style={{ width: "100%", display: "block" }}>
         <g transform={plot}>
-          {[90, 180, 270].map((y) => (
+          {[40, 120, 200, 280].map((y) => (
             <line key={y} x1={0} y1={y} x2={1016} y2={y} stroke="#F4F8FA" strokeWidth={1.4} />
           ))}
-          <path d={B.band} fill="#52A9E2" opacity={(st(0.64, 0.76) * 0.18).toFixed(3)} />
-          {B.lines.map((o, i) => {
-            const lp = clamp((lo - (i / B.lines.length) * 0.8) / 0.2);
-            const live = lp > 0.02 && lp < 0.999;
+          <path d={B.base.band} fill="#8AC7EF" opacity={(st(0.06, 0.26) * 0.3).toFixed(3)} />
+          <path d={B.lever.band} fill="#4CC48C" opacity={(st(0.42, 0.62) * 0.3).toFixed(3)} />
+
+          {/* Each pair is one life run twice: the grey is what happens anyway. */}
+          {B.pairs.map((q, i) => {
+            const a = clamp((lo - 0.08 - i * 0.045) / 0.16);
+            const b = clamp((lo - 0.44 - i * 0.045) / 0.16);
             return (
-              <path
-                key={i}
-                d={o.d}
-                fill="none"
-                stroke={live ? "#2C8BCF" : "#8AC7EF"}
-                strokeWidth={live ? 2.8 : 1.5}
-                strokeLinecap="round"
-                strokeDasharray={o.len.toFixed(0)}
-                strokeDashoffset={(o.len * (1 - lp)).toFixed(0)}
-                opacity={lp > 0 ? (live ? 0.8 : 0.3) : 0}
-              />
+              <g key={i}>
+                <path
+                  d={q.base.d}
+                  fill="none"
+                  stroke="#8AC7EF"
+                  strokeWidth={1.7}
+                  strokeLinecap="round"
+                  strokeDasharray={q.base.len.toFixed(0)}
+                  strokeDashoffset={(q.base.len * (1 - a)).toFixed(0)}
+                  opacity={0.65}
+                />
+                <path
+                  d={q.lever.d}
+                  fill="none"
+                  stroke="#4CC48C"
+                  strokeWidth={1.7}
+                  strokeLinecap="round"
+                  strokeDasharray={q.lever.len.toFixed(0)}
+                  strokeDashoffset={(q.lever.len * (1 - b)).toFixed(0)}
+                  opacity={0.75}
+                />
+              </g>
             );
           })}
-          {B.lines.map((o, i) => {
-            const lp = clamp((lo - (i / B.lines.length) * 0.8) / 0.2);
-            return (
-              <ellipse
-                key={i}
-                cx={o.end[0].toFixed(1)}
-                cy={o.end[1].toFixed(1)}
-                rx={3.4}
-                ry={3.4 / K}
-                fill="#8AC7EF"
-                opacity={lp > 0.999 ? 0.4 : 0}
-              />
-            );
-          })}
+
           <path
-            d={B.med}
+            d={B.base.med}
             fill="none"
             stroke="#1E6EA9"
             strokeWidth={3.4}
             strokeLinecap="round"
-            strokeDasharray={B.medLen.toFixed(0)}
-            strokeDashoffset={(B.medLen * (1 - st(0.68, 0.88))).toFixed(0)}
+            strokeDasharray={B.base.medLen.toFixed(0)}
+            strokeDashoffset={(B.base.medLen * (1 - st(0.12, 0.36))).toFixed(0)}
           />
+          <path
+            d={B.lever.med}
+            fill="none"
+            stroke="#1B8659"
+            strokeWidth={3.4}
+            strokeLinecap="round"
+            strokeDasharray={B.lever.medLen.toFixed(0)}
+            strokeDashoffset={(B.lever.medLen * (1 - st(0.48, 0.72))).toFixed(0)}
+          />
+
+          {/* The gap between the two medians at the horizon is the answer. */}
           <line
-            x1={B.markX}
-            y1={0}
-            x2={B.markX}
-            y2={360}
-            stroke="#1E6EA9"
-            strokeWidth={1.6}
-            strokeDasharray="4 6"
-            opacity={st(0.9, 0.99).toFixed(2)}
+            x1={1004}
+            y1={baseY}
+            x2={1004}
+            y2={leverY}
+            stroke="#1B8659"
+            strokeWidth={2.4}
+            strokeLinecap="round"
+            opacity={st(0.74, 0.9).toFixed(2)}
           />
-          <ellipse
-            cx={B.markX}
-            cy={B.markY}
-            rx={15}
-            ry={15 / K}
-            fill="#1E6EA9"
-            opacity={(st(0.9, 0.99) * 0.22).toFixed(3)}
-          />
-          <ellipse
-            cx={B.markX}
-            cy={B.markY}
-            rx={7}
-            ry={7 / K}
-            fill="#1E6EA9"
-            opacity={st(0.9, 0.99).toFixed(2)}
-          />
-        </g>
-        <path d="M12 383 L1028 383" stroke="#E9EFF3" strokeWidth={1.6} />
-        <text x={12} y={18} fill="#B5C2CC" style={{ fontWeight: 700, fontSize: 11 }}>
-          sin enfermedad crónica
-        </text>
-        <text x={12} y={376 + EXTRA} fill="#B5C2CC" style={{ fontWeight: 700, fontSize: 11 }}>
-          primer evento
-        </text>
-        <text x={12} y={404 + EXTRA} fill="#8D9BA8" style={axisLabel}>
-          42
-        </text>
-        <text x={266} y={404 + EXTRA} fill="#8D9BA8" textAnchor="middle" style={axisLabel}>
-          55
-        </text>
-        <text x={520} y={404 + EXTRA} fill="#8D9BA8" textAnchor="middle" style={axisLabel}>
-          68
-        </text>
-        <text x={774} y={404 + EXTRA} fill="#8D9BA8" textAnchor="middle" style={axisLabel}>
-          82
-        </text>
-        <text x={1028} y={404 + EXTRA} fill="#8D9BA8" textAnchor="end" style={axisLabel}>
-          96 años
-        </text>
-      </svg>
-      );
-    if (s === 2)
-      return (
-      <svg viewBox={wideBox} style={{ width: "100%", display: "block" }}>
-        <g transform={plot}>
-          {B.bars.map((b, i) => {
-            const grow = clamp((lo - (i / B.bars.length) * 0.5) / 0.18);
+          {/* On a phone the plot is stretched vertically and the type with it,
+              so this annotation can land on top of a median. Give it a chip. */}
+          {(() => {
+            const label = `+${formatEsCO1(B.delta)} años`;
+            const fs = 19 * TS;
+            const w = label.length * fs * 0.52;
+            const y = ((baseY + leverY) / 2) * K;
             return (
-              <rect
-                key={i}
-                x={b.x}
-                y={(360 - b.h * grow).toFixed(1)}
-                width={b.w}
-                height={(b.h * grow).toFixed(1)}
-                rx={7}
-                fill="#8AC7EF"
-              />
+              <g transform={`scale(1,${1 / K})`} opacity={st(0.78, 0.94).toFixed(2)}>
+                <rect
+                  x={(992 - w).toFixed(1)}
+                  y={(y - fs * 0.72).toFixed(1)}
+                  width={(w + 6).toFixed(1)}
+                  height={(fs * 1.44).toFixed(1)}
+                  rx={(fs * 0.72).toFixed(1)}
+                  fill="#FFFFFF"
+                  opacity={0.9}
+                />
+                <text
+                  x={988}
+                  y={(y + fs * 0.36).toFixed(1)}
+                  fill="#1B8659"
+                  textAnchor="end"
+                  style={{ fontFamily: F, fontWeight: 600, fontSize: fs }}
+                >
+                  {label}
+                </text>
+              </g>
             );
-          })}
-          <line
-            x1={B.x50}
-            y1={0}
-            x2={B.x50}
-            y2={360}
-            stroke="#1E6EA9"
-            strokeWidth={3}
-            opacity={st(0.66, 0.86).toFixed(2)}
-          />
-          {[B.x05, B.x95].map((x) => (
-            <line
-              key={x}
-              x1={x}
-              y1={40}
-              x2={x}
-              y2={360}
-              stroke="#1E6EA9"
-              strokeWidth={1.6}
-              strokeDasharray="4 6"
-              opacity={st(0.66, 0.86).toFixed(2)}
-            />
-          ))}
-          <text
-            x={B.x50}
-            y={-4 * K}
-            transform={`scale(1,${1 / K})`}
-            fill="#1E6EA9"
-            textAnchor="middle"
-            style={{ fontFamily: F, fontWeight: 600, fontSize: 15 }}
-            opacity={st(0.66, 0.86).toFixed(2)}
-          >
-            68
-          </text>
-          <text
-            x={B.x05}
-            y={30 * K}
-            transform={`scale(1,${1 / K})`}
-            fill="#8D9BA8"
-            textAnchor="middle"
-            style={{ fontWeight: 700, fontSize: 11.5 }}
-            opacity={st(0.66, 0.86).toFixed(2)}
-          >
-            61
-          </text>
-          <text
-            x={B.x95}
-            y={30 * K}
-            transform={`scale(1,${1 / K})`}
-            fill="#8D9BA8"
-            textAnchor="middle"
-            style={{ fontWeight: 700, fontSize: 11.5 }}
-            opacity={st(0.66, 0.86).toFixed(2)}
-          >
-            75
-          </text>
+          })()}
         </g>
-        <path d="M12 383 L1028 383" stroke="#E9EFF3" strokeWidth={1.6} />
-        <text x={12} y={404 + EXTRA} fill="#8D9BA8" style={axisLabel}>
-          52
+        <text x={12} y={TOP - 4} fill="#B5C2CC" style={{ fontWeight: 700, fontSize: 11 * TS }}>
+          años que tu cuerpo se adelanta al calendario
         </text>
-        <text x={520} y={404 + EXTRA} fill="#8D9BA8" textAnchor="middle" style={axisLabel}>
-          años sin enfermedad crónica
-        </text>
-        <text x={1028} y={404 + EXTRA} fill="#8D9BA8" textAnchor="end" style={axisLabel}>
-          92 años
-        </text>
+        {xAxis()}
       </svg>
-      );
-    return (
-      <div
-        style={{ display: "flex", gap: 34, alignItems: "center", flexWrap: "wrap", width: "100%" }}
-      >
-        <svg
-          viewBox="326 10 388 400"
-          preserveAspectRatio="xMidYMid meet"
-          style={{
-            flex: "1 1 300px",
-            minWidth: 0,
-            width: "100%",
-            height: "auto",
-            aspectRatio: "388/400",
-            maxHeight: "var(--mo-cal-max, 52vh)",
-            display: "block",
-          }}
-        >
-          <g transform="translate(12,22)">
-            <rect x={338} y={8} width={340} height={340} rx={18} fill="#F4F8FA" />
-            {[93, 178, 263].map((y) => (
-              <line key={y} x1={338} y1={y} x2={678} y2={y} stroke="#FFFFFF" strokeWidth={1.6} />
-            ))}
-            {[423, 508, 593].map((x) => (
-              <line key={x} x1={x} y1={8} x2={x} y2={348} stroke="#FFFFFF" strokeWidth={1.6} />
-            ))}
-            <line
-              x1={338}
-              y1={348}
-              x2={678}
-              y2={8}
-              stroke="#8D9BA8"
-              strokeWidth={2}
-              strokeDasharray="6 6"
-              opacity={clamp(lo / 0.18).toFixed(2)}
-            />
-            <path
-              d={B.cal.d}
-              fill="none"
-              stroke="#1E6EA9"
-              strokeWidth={3.2}
-              strokeLinecap="round"
-              strokeDasharray={B.cal.len}
-              strokeDashoffset={(B.cal.len * (1 - clamp((lo - 0.15) / 0.6))).toFixed(0)}
-            />
-            {B.cal.pts.map((q) => (
-              <circle
-                key={q.i}
-                cx={q.cx}
-                cy={q.cy}
-                r={5.5}
-                fill="#FFFFFF"
-                stroke="#1E6EA9"
-                strokeWidth={2.6}
-                opacity={clamp((lo - 0.4 - q.i * 0.05) / 0.12).toFixed(2)}
-              />
-            ))}
-            <text
-              x={508}
-              y={372}
-              fill="#8D9BA8"
-              textAnchor="middle"
-              style={{ fontWeight: 700, fontSize: 12 }}
-            >
-              lo que predije
-            </text>
-            <text
-              x={322}
-              y={178}
-              fill="#8D9BA8"
-              textAnchor="middle"
-              transform="rotate(-90 322 178)"
-              style={{ fontWeight: 700, fontSize: 12 }}
-            >
-              lo que pasó
-            </text>
-          </g>
-        </svg>
-        <div
-          className="mo-eng__proof"
-          style={{
-            flex: "0 0 336px",
-            minWidth: 0,
-            maxWidth: "100%",
-            display: "flex",
-            flexDirection: "column",
-            gap: 12,
-            opacity: clamp((lo - 0.72) / 0.2).toFixed(2),
-            transition: "opacity .5s ease",
-          }}
-        >
-          <div style={{ fontFamily: F, fontWeight: 600, fontSize: 64, lineHeight: 1, color: "#1E6EA9" }}>
-            88%
-          </div>
-          <div style={{ fontWeight: 700, fontSize: 15, lineHeight: 1.45, color: "#4F5D69", maxWidth: 340 }}>
-            de las veces acerté dentro de mi rango
-          </div>
-        </div>
-      </div>
     );
   };
+
 
   const track = useRef<HTMLDivElement>(null);
   const step = useCallback((dir: -1 | 1) => {
@@ -393,7 +453,7 @@ export function EngineSection() {
   }, []);
 
   return (
-    <section id="motor" className="mo-pin-sec" style={{ height: "520vh" }}>
+    <section id="motor" className="mo-pin-sec" style={{ height: "640vh" }}>
       <div
         className="mo-pin-panel"
         style={{ ...pinStyle(pin), gap: 16, padding: "80px 28px 24px" }}
@@ -402,11 +462,11 @@ export function EngineSection() {
           <div style={{ display: "flex", alignItems: "flex-end", gap: 20, flexWrap: "wrap" }}>
             <div className="mo-col" style={{ gap: 7 }}>
               <h2 className="mo-h2" style={{ fontSize: 40, lineHeight: 1.1 }}>
-                Cuántos años sanos tienes por delante
+                Qué edad tendrá tu cuerpo en diez años
               </h2>
               <p className="mo-lede" style={{ fontSize: 15.5, lineHeight: 1.55, maxWidth: 600 }}>
-                Simulo tu vida diez mil veces. Luego cambio una sola cosa y repito, y esa diferencia
-                es lo que puedes ganar.
+                Simulo diez mil futuros tuyos. Luego repito los mismos cambiando una sola cosa, y
+                esa diferencia es lo que ganas.
               </p>
             </div>
             <div className="mo-eng__counter">
@@ -492,7 +552,7 @@ export function EngineSection() {
                   className={`mo-card mo-eng__slide${stage === s ? " mo-eng__slide--on" : ""}`}
                 >
                   <div className="mo-eng__figure">{chart(s)}</div>
-                  <div className="mo-eng__cap">{CAPTIONS[s](localOf(s))}</div>
+                  <div className="mo-eng__cap">{CAPTIONS[s](localOf(s), B)}</div>
                 </div>
               ))}
             </div>

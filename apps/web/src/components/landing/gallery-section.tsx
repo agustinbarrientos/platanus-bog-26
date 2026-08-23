@@ -353,7 +353,7 @@ function AdherenceScreen() {
               +1,3
             </span>
             <span style={{ fontFamily: F, fontWeight: 500, fontSize: 12, color: "#1E6EA9" }}>
-              años sanos
+              años menos
             </span>
           </div>
           <div style={{ fontWeight: 700, fontSize: 10.5, color: "#1E6EA9" }}>
@@ -373,26 +373,26 @@ function AdherenceScreen() {
 function CalibrationScreen() {
   const mini = miniCurves();
   return (
-    <Screen title="Qué tan bien acierto">
+    <Screen title="De dónde sale el número">
       <div className="mo-screen__body" style={{ gap: 8, padding: "4px 13px 0" }}>
         <div style={{ fontSize: 10.5, lineHeight: 1.4, color: "#4F5D69" }}>
-          Me probé contra 5.000 personas cuyo desenlace ya se conoce.
+          Tres capas, y el ancho que todavía no puedo cerrar.
         </div>
         <div style={{ display: "flex", gap: 6 }}>
-          <div style={{ flex: 1, padding: 10, borderRadius: 16, background: "#D6F5E5" }}>
-            <div style={{ fontFamily: F, fontWeight: 600, fontSize: 22, lineHeight: 1, color: "#1B8659" }}>
-              88%
-            </div>
-            <div style={{ fontWeight: 700, fontSize: 7.5, lineHeight: 1.3, color: "#1B8659" }}>
-              DE LAS VECES MI RANGO CONTUVO EL RESULTADO
-            </div>
-          </div>
           <div style={{ flex: 1, padding: 10, borderRadius: 16, background: "#DBEEFB" }}>
             <div style={{ fontFamily: F, fontWeight: 600, fontSize: 22, lineHeight: 1, color: "#1E6EA9" }}>
-              5.000
+              9
             </div>
             <div style={{ fontWeight: 700, fontSize: 7.5, lineHeight: 1.3, color: "#1E6EA9" }}>
-              PERSONAS QUE NUNCA VI AL APRENDER
+              BIOMARCADORES QUE LEO DE TU EXAMEN
+            </div>
+          </div>
+          <div style={{ flex: 1, padding: 10, borderRadius: 16, background: "#D6F5E5" }}>
+            <div style={{ fontFamily: F, fontWeight: 600, fontSize: 22, lineHeight: 1, color: "#1B8659" }}>
+              10.000
+            </div>
+            <div style={{ fontWeight: 700, fontSize: 7.5, lineHeight: 1.3, color: "#1B8659" }}>
+              FUTUROS POR CADA ESCENARIO
             </div>
           </div>
         </div>
@@ -403,14 +403,23 @@ function CalibrationScreen() {
             borderRadius: 18,
             padding: 10,
             display: "flex",
-            justifyContent: "center",
+            flexDirection: "column",
+            gap: 6,
           }}
         >
-          <svg width={150} height={150} viewBox="0 0 250 250">
-            <rect x={20} y={20} width={210} height={210} rx={14} fill="#F4F8FA" />
-            <line x1={20} y1={230} x2={230} y2={20} stroke="#8D9BA8" strokeWidth={3} strokeDasharray="7 7" />
-            <path d={mini.cal} fill="none" stroke="#1E6EA9" strokeWidth={4} strokeLinecap="round" />
+          <svg viewBox="0 0 260 92" style={{ width: "100%", height: "auto", display: "block" }}>
+            <path d={mini.bandWide} fill="#8AC7EF" opacity={0.4} />
+            <path
+              d={mini.medWide}
+              fill="none"
+              stroke="#1E6EA9"
+              strokeWidth={3}
+              strokeLinecap="round"
+            />
           </svg>
+          <div style={{ fontWeight: 700, fontSize: 8, color: "#8D9BA8" }}>
+            EL ANCHO ES LO QUE TODAVÍA NO SÉ DE TI
+          </div>
         </div>
         <div
           style={{

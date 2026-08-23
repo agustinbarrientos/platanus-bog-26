@@ -10,3 +10,15 @@ export function formatEsCO(n: number): string {
   const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   return (n < 0 ? "-" : "") + grouped + (frac ? "," + frac : "");
 }
+
+/**
+ * Always one decimal, es-CO. `formatEsCO` drops the decimal on whole numbers,
+ * which reads as a different precision when a 55 sits in the same sentence as
+ * a 51,4 — and makes a counting number jump a character wide mid-count. Use
+ * this for every biological age and every delta in years.
+ */
+export function formatEsCO1(n: number): string {
+  const [int, frac] = Math.abs(n).toFixed(1).split(".");
+  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return (n < 0 ? "-" : "") + grouped + "," + frac;
+}

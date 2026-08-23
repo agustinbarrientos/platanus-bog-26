@@ -176,10 +176,13 @@ function checkpoints(): number[] {
   const motor = el("motor");
   if (motor) {
     const span = motor.offsetHeight - window.innerHeight;
+    // Mid-dwell of each engine stage, so an arrow press lands on a finished
+    // picture rather than halfway through one being drawn. Kept in step with
+    // WINDOWS in engine-section.
     out.push(
-      motor.offsetTop + Math.round(span * 0.415),
-      motor.offsetTop + Math.round(span * 0.705),
-      motor.offsetTop + Math.round(span * 0.999),
+      motor.offsetTop + Math.round(span * 0.345),
+      motor.offsetTop + Math.round(span * 0.655),
+      motor.offsetTop + Math.round(span * 0.955),
     );
   }
   for (const id of ["chat", "rvA"]) {

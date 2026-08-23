@@ -1,6 +1,7 @@
 "use client";
 
-import { miniCurves } from "@/lib/moirai/curves";
+import { bigCurves, miniCurves } from "@/lib/moirai/curves";
+import { formatEsCO1 } from "@/lib/moirai/format";
 
 import { Mascot } from "./mascot";
 import { LeversIcon, MoiraiGlyph, PulseIcon, ShieldIcon } from "./icons";
@@ -60,6 +61,9 @@ function ScreenTitle({ children, extra }: { children: string; extra?: React.Reac
   );
 }
 
+/** A delta always carries its sign, so a range reads as a range of gains. */
+const signed = (n: number) => (n > 0 ? "+" : "") + formatEsCO1(n);
+
 const leverRow = {
   border: "1.5px solid #E9EFF3",
   borderRadius: 16,
@@ -73,6 +77,7 @@ const leverRow = {
 /** Screen 1 — the headline number with the levers that move it. */
 export function ScreenFuture() {
   const mini = miniCurves();
+  const B = bigCurves();
   return (
     <>
       <ScreenTitle
@@ -92,7 +97,7 @@ export function ScreenFuture() {
             }}
           >
             <ShieldIcon width={10} height={10} />
-            88%
+            Respaldo
           </span>
         }
       >
@@ -104,17 +109,19 @@ export function ScreenFuture() {
         style={{ gap: 7, padding: "6px 14px 0" }}
       >
         <div style={{ fontWeight: 700, fontSize: 8.5, letterSpacing: "0.05em", color: "#8D9BA8" }}>
-          AÑOS SIN ENFERMEDAD CRÓNICA
+          EDAD BIOLÓGICA EN 10 AÑOS
         </div>
         <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
           <span style={{ fontFamily: F, fontWeight: 600, fontSize: 44, lineHeight: 1, color: "#1E6EA9" }}>
-            68
+            {formatEsCO1(B.p50)}
           </span>
           <span style={{ fontFamily: F, fontWeight: 500, fontSize: 16, color: "#4F5D69" }}>años</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
           <span style={{ width: 22, height: 3, borderRadius: 2, background: "rgba(82,169,226,.45)" }} />
-          <span style={{ fontWeight: 600, fontSize: 11, color: "#4F5D69" }}>entre 61 y 75</span>
+          <span style={{ fontWeight: 600, fontSize: 11, color: "#4F5D69" }}>
+            entre {formatEsCO1(B.p10)} y {formatEsCO1(B.p90)}
+          </span>
         </div>
 
         <div
@@ -172,9 +179,9 @@ export function ScreenFuture() {
               color: "#8D9BA8",
             }}
           >
-            <span>42</span>
-            <span>68</span>
-            <span>96 años</span>
+            <span>hoy</span>
+            <span>5</span>
+            <span>10 años</span>
           </div>
         </div>
 
@@ -182,8 +189,12 @@ export function ScreenFuture() {
           Lo que puedes mover
         </div>
         {[
-          { name: "Caminar 30 min al día", range: "entre +0,9 y +6,4 · 84%", gain: "+3,1" },
-          { name: "Dormir 7 horas seguidas", range: "entre +0,3 y +4,0 · 71%", gain: "+1,8" },
+          {
+            name: "Caminar 30 min al día",
+            range: `entre ${signed(B.deltaLo)} y ${signed(B.deltaHi)} · ${B.pctMejoran}%`,
+            gain: `+${formatEsCO1(B.delta)}`,
+          },
+          { name: "Dieta mediterránea", range: "entre -0,2 y +1,4 · 66%", gain: "+0,5" },
         ].map((l) => (
           <div key={l.name} style={leverRow}>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 1 }}>
@@ -194,7 +205,7 @@ export function ScreenFuture() {
               <div style={{ fontFamily: F, fontWeight: 600, fontSize: 16, lineHeight: 1, color: "#1B8659" }}>
                 {l.gain}
               </div>
-              <div style={{ fontWeight: 700, fontSize: 7, color: "#8D9BA8" }}>años sanos</div>
+              <div style={{ fontWeight: 700, fontSize: 7, color: "#8D9BA8" }}>años menos</div>
             </div>
           </div>
         ))}
@@ -328,7 +339,7 @@ export function ScreenAdherence({ scale = 1 }: { scale?: number }) {
               +1,3
             </span>
             <span style={{ fontFamily: F, fontWeight: 500, fontSize: s(13), color: "#1E6EA9" }}>
-              años sanos
+              años menos
             </span>
           </div>
           <div style={{ fontWeight: 700, fontSize: s(11), color: "#1E6EA9" }}>
@@ -359,26 +370,26 @@ export function ScreenCalibration({ note }: { note: string }) {
   const mini = miniCurves();
   return (
     <>
-      <ScreenTitle>Qué tan bien acierto</ScreenTitle>
+      <ScreenTitle>De dónde sale el número</ScreenTitle>
       <div className="mo-screen__body" style={{ gap: 9, padding: "6px 14px 0" }}>
-        <div style={{ fontSize: 10.5, lineHeight: 1.45, color: "#4F5D69" }}>
-          Me probé contra 5.000 personas cuyo desenlace ya se conoce.
+        <div style={{ fontSize: 10.5, lineHeight: 1.4, color: "#4F5D69" }}>
+          Tres capas, y el ancho que todavía no puedo cerrar.
         </div>
-        <div style={{ display: "flex", gap: 7 }}>
-          <div style={{ flex: 1, padding: 11, borderRadius: 16, background: "#D6F5E5" }}>
-            <div style={{ fontFamily: F, fontWeight: 600, fontSize: 24, lineHeight: 1, color: "#1B8659" }}>
-              88%
-            </div>
-            <div style={{ fontWeight: 700, fontSize: 7.5, lineHeight: 1.3, color: "#1B8659" }}>
-              DE LAS VECES MI RANGO CONTUVO EL RESULTADO
-            </div>
-          </div>
+        <div style={{ display: "flex", gap: 6 }}>
           <div style={{ flex: 1, padding: 11, borderRadius: 16, background: "#DBEEFB" }}>
             <div style={{ fontFamily: F, fontWeight: 600, fontSize: 24, lineHeight: 1, color: "#1E6EA9" }}>
-              5.000
+              9
             </div>
             <div style={{ fontWeight: 700, fontSize: 7.5, lineHeight: 1.3, color: "#1E6EA9" }}>
-              PERSONAS QUE NUNCA VI AL APRENDER
+              BIOMARCADORES QUE LEO DE TU EXAMEN
+            </div>
+          </div>
+          <div style={{ flex: 1, padding: 11, borderRadius: 16, background: "#D6F5E5" }}>
+            <div style={{ fontFamily: F, fontWeight: 600, fontSize: 24, lineHeight: 1, color: "#1B8659" }}>
+              10.000
+            </div>
+            <div style={{ fontWeight: 700, fontSize: 7.5, lineHeight: 1.3, color: "#1B8659" }}>
+              FUTUROS POR CADA ESCENARIO
             </div>
           </div>
         </div>
@@ -389,14 +400,23 @@ export function ScreenCalibration({ note }: { note: string }) {
             borderRadius: 18,
             padding: 11,
             display: "flex",
-            justifyContent: "center",
+            flexDirection: "column",
+            gap: 6,
           }}
         >
-          <svg width={150} height={150} viewBox="0 0 250 250">
-            <rect x={20} y={20} width={210} height={210} rx={14} fill="#F4F8FA" />
-            <line x1={20} y1={230} x2={230} y2={20} stroke="#8D9BA8" strokeWidth={3} strokeDasharray="7 7" />
-            <path d={mini.cal} fill="none" stroke="#1E6EA9" strokeWidth={4} strokeLinecap="round" />
+          <svg viewBox="0 0 260 92" style={{ width: "100%", height: "auto", display: "block" }}>
+            <path d={mini.bandWide} fill="#8AC7EF" opacity={0.4} />
+            <path
+              d={mini.medWide}
+              fill="none"
+              stroke="#1E6EA9"
+              strokeWidth={3}
+              strokeLinecap="round"
+            />
           </svg>
+          <div style={{ fontWeight: 700, fontSize: 8, color: "#8D9BA8" }}>
+            EL ANCHO ES LO QUE TODAVÍA NO SÉ DE TI
+          </div>
         </div>
         <div
           style={{

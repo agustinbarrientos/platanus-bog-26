@@ -21,14 +21,14 @@ const nunito = Nunito({
 });
 
 export const metadata: Metadata = {
-  title: "Moirai · Conoce tus años sanos, y cómo sumar más",
+  title: "Moirai · Cuánto puedes frenar el reloj de tu cuerpo",
   description:
-    "Sube tu examen y contesta unas preguntas. Simulo tu vida diez mil veces, te digo qué enfermedades son probables y qué puedes hacer.",
+    "Sube tu examen y contesta unas preguntas. Simulo diez mil futuros tuyos y te digo qué decisión le quita más años a tu cuerpo.",
   icons: { icon: "/moirai/moirai-icon.svg" },
   openGraph: {
-    title: "Moirai · Ve tu futuro. Cámbialo.",
+    title: "Moirai · Cuánto puedes frenar el reloj de tu cuerpo",
     description:
-      "Simulo tu vida diez mil veces y te digo cuántos años sanos llevas por delante, y qué los mueve.",
+      "Simulo diez mil futuros tuyos, luego los repito cambiando una sola cosa. Esa diferencia es lo que ganas.",
     locale: "es_CO",
     type: "website",
   },
