@@ -951,6 +951,14 @@ html:has(.moirai) {
 .mo-footer__link:hover {
   color: var(--sky-600);
 }
+.mo-footer__repo {
+  display: inline-flex;
+  align-items: center;
+  color: var(--n-400);
+}
+.mo-footer__repo:hover {
+  color: var(--n-900);
+}
 .mo-footer__credit {
   display: inline-flex;
   align-items: center;

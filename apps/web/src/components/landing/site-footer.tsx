@@ -1,5 +1,5 @@
 import { MoiraiLogo, PlatanusIcon } from "./brand";
-import { LinkedInIcon } from "./icons";
+import { GitHubIcon, LinkedInIcon } from "./icons";
 
 const TEAM = [
   { name: "Agustín Barrientos", url: "https://www.linkedin.com/in/barrientosagustin/" },
@@ -14,8 +14,17 @@ export function SiteFooter() {
       <div className="mo-footer__row">
         <MoiraiLogo aria-label="Moirai" style={{ height: 22, width: "auto", display: "block" }} />
         <span style={{ fontWeight: 600, fontSize: 12.5, color: "#4F5D69" }}>
-          Ve tu futuro. Cámbialo.
+          Cuánto puedes frenar el reloj de tu cuerpo.
         </span>
+        <a
+          className="mo-footer__repo"
+          href="https://github.com/platanus-hack/platanus-hack-26-co-team-37"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Código en GitHub"
+        >
+          <GitHubIcon width={16} height={16} style={{ display: "block" }} />
+        </a>
         <div style={{ flex: 1 }} />
         <a className="mo-footer__link" href="#motor">
           Cómo funciona
