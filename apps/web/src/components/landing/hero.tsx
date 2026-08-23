@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 import { useMoiraiScroll } from "@/lib/moirai/scroll-store";
 
 import { ScreenAdherenceHero, ScreenCalibrationHero, ScreenFuture } from "./hero-screens";
@@ -49,7 +51,7 @@ export function Hero() {
           </p>
 
           <div className="mo-hero__actions">
-            <a className="mo-store" href="#descargar">
+            <a className="mo-store" href="/downloads/moirai.apk" download>
               <GooglePlayIcon width={23} height={23} />
               <span style={{ display: "flex", flexDirection: "column" }}>
                 <span className="mo-store__eyebrow">DISPONIBLE EN</span>
@@ -96,28 +98,31 @@ export function Hero() {
         </div>
 
         <div className="mo-stage">
-          <div className="mo-stage__device">
-            <div className="mo-stage__breathe">
-              <div className="mo-device mo-device--hero">
-                <div className="mo-device__screen">
-                  <div className="mo-device__notch" />
-                  <div className="mo-device__stack">
-                    {SCREENS.map((Screen, i) => (
-                      <div
-                        key={i}
-                        className="mo-screen"
-                        aria-hidden={scr !== i}
-                        style={{
-                          opacity: scr === i ? 1 : 0,
-                          transform: scr === i ? "translateY(0) scale(1)" : "translateY(14px) scale(.97)",
-                        }}
-                      >
-                        <Screen />
-                      </div>
-                    ))}
+          <div className="mo-hand">
+            <div className="mo-hand__scale">
+              <div className="mo-hand__screen">
+                {SCREENS.map((Screen, i) => (
+                  <div
+                    key={i}
+                    className="mo-screen"
+                    aria-hidden={scr !== i}
+                    style={{
+                      opacity: scr === i ? 1 : 0,
+                      transform: scr === i ? "translateY(0) scale(1)" : "translateY(14px) scale(.97)",
+                    }}
+                  >
+                    <Screen />
                   </div>
-                </div>
+                ))}
               </div>
+              <Image
+                className="mo-hand__photo"
+                src="/moirai/phone.png"
+                alt=""
+                width={1254}
+                height={1254}
+                priority
+              />
             </div>
           </div>
 

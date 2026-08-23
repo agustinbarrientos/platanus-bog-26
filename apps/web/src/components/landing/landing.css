@@ -378,15 +378,45 @@ html:has(.moirai) {
   position: relative;
   animation: moFadeUp 0.8s ease-out 0.28s both;
 }
-.mo-stage__device {
+.mo-hand {
   position: absolute;
-  left: 215px;
-  top: 35px;
-  transform-origin: top left;
-}
-.mo-stage__breathe {
+  left: -16px;
+  top: -46px;
+  width: 1254px;
+  height: 1254px;
   animation: moDeviceBreathe 9s ease-in-out infinite;
   transform-origin: 42% 55%;
+}
+.mo-hand__scale {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1254px;
+  height: 1254px;
+  transform: scale(0.62);
+  transform-origin: 0 0;
+}
+/* The photo has a transparent window at 390,148 sized 478x906 in its own
+   pixels; the screen sits 1px inside it and the photo paints the bezel. */
+.mo-hand__screen {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 246px;
+  height: 468px;
+  transform: translate(391px, 149px) scale(1.9309);
+  transform-origin: 0 0;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--sky-50);
+}
+.mo-hand__photo {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1254px;
+  height: 1254px;
+  pointer-events: none;
 }
 .mo-mascot-mobile {
   display: none;
@@ -403,26 +433,6 @@ html:has(.moirai) {
     0 3px 8px rgba(35, 45, 53, 0.14),
     0 20px 44px rgba(44, 110, 140, 0.18);
 }
-/* Hero phone: the 246x468 screen artwork scaled up by --mo-hero-zoom. */
-.mo-device--hero {
-  --mo-hero-zoom: 1.2;
-  width: 317px;
-  height: 584px;
-  border-radius: 44px;
-  padding: 11px;
-  box-shadow:
-    0 4px 12px rgba(35, 45, 53, 0.16),
-    0 30px 64px rgba(44, 110, 140, 0.22);
-}
-.mo-device--hero .mo-device__stack {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 246px;
-  height: 468px;
-  transform: scale(var(--mo-hero-zoom));
-  transform-origin: 0 0;
-}
 .mo-device__screen {
   position: relative;
   width: 100%;
@@ -434,9 +444,6 @@ html:has(.moirai) {
   display: flex;
   flex-direction: column;
 }
-.mo-device--hero .mo-device__screen {
-  border-radius: 34px;
-}
 .mo-device__notch {
   position: absolute;
   top: 8px;
@@ -447,13 +454,6 @@ html:has(.moirai) {
   border-radius: 8px;
   background: var(--n-900);
   z-index: 5;
-}
-.mo-device--hero .mo-device__notch {
-  margin-left: -36px;
-  width: 72px;
-  height: 19px;
-  border-radius: 10px;
-  top: 10px;
 }
 
 /* One phone screen crossfading with its siblings inside the hero device. */
@@ -1013,15 +1013,12 @@ html:has(.moirai) {
   .mo-stage {
     width: 100%;
     max-width: 432px;
-    height: 430px;
+    height: 396px;
     transform: none;
     transform-origin: top center;
   }
-  .mo-stage__device {
-    left: 50%;
-    top: 14px;
-    transform: translateX(-50%) scale(0.66);
-    transform-origin: top center;
+  .mo-hand__scale {
+    transform: scale(0.33);
   }
   .mo-pill {
     padding: 7px 11px;

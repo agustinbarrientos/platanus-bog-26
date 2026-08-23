@@ -40,7 +40,8 @@ export function DownloadSection() {
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
           <a
             className="mo-store"
-            href="https://play.google.com/store"
+            href="/downloads/moirai.apk"
+        download
             target="_blank"
             rel="noopener noreferrer"
           >
