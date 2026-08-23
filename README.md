@@ -7,9 +7,9 @@
 Moirai lee tu examen de sangre, simula diez mil futuros tuyos a diez años<br />
 y te dice qué decisión le quita más años a tu cuerpo.
 
-**[Ver el sitio](https://moirai.uo.ar/)** · **[Pitch deck](https://moirai.uo.ar/slides)** · Track 🌐 Simulations
+**[Ver el sitio](https://moirai.uo.ar/)** &nbsp;|&nbsp; **[Pitch deck](https://moirai.uo.ar/slides)** &nbsp;|&nbsp; Track Simulations
 
-<p>Creado en 36 horas durante <a href="https://hack.platan.us/26-co"><img src="./design/branding/icons/platanus.svg" alt="Platanus Hack" height="14" align="middle" /></a> &nbsp;·&nbsp; Bogotá</p>
+<p>Creado en 36 horas durante <a href="https://hack.platan.us/26-co"><img src="./design/branding/icons/platanus.svg" alt="Platanus Hack" height="11" style="max-height: 11px; vertical-align: baseline; display: inline;" /></a> en Bogotá</p>
 
 </div>
 
@@ -29,38 +29,21 @@ Esa diferencia, con su rango, es lo que ganas. Una recomendación protagonista, 
 
 Tres capas apiladas, nunca mezcladas.
 
-|   | Capa | Qué hace |
+| | Capa | Qué hace |
 | :-: | --- | --- |
 | **1** | **Medidor** | PhenoAge (Levine 2018) con los pesos publicados. Mide el presente; no predice. |
 | **2** | **Evolución** | Deriva anual por biomarcador y el efecto de cada palanca. Coeficientes de literatura epidemiológica, aproximados y citables. |
 | **3** | **Monte Carlo** | Diez mil corridas con ruido. Lo que no medimos se **sortea** de su dispersión poblacional: menos datos, banda más ancha. |
 
-Los futuros van **pareados** — misma semilla, mismos arranques, una sola variable cambiada. Los años ganados son la distribución de esa diferencia trayectoria a trayectoria, no la resta de dos promedios.
+Los futuros van **pareados**: misma semilla, mismos arranques, una sola variable cambiada. Los años ganados son la distribución de esa diferencia trayectoria a trayectoria, no la resta de dos promedios.
 
 Seis palancas: ejercicio, dieta mediterránea, tabaco, sueño, estrés y alcohol. Solas o combinadas de a tres, ordenadas por años ganados **por unidad de esfuerzo**.
 
 ## Lo que no hacemos
 
 - **No predecimos enfermedades.** El motor calcula edad biológica. No modela incidencia de diabetes, cáncer ni nada por el estilo, y por eso no lo prometemos.
-- **No tenemos calibración formal todavía.** El activo honesto es la banda P10–P90, no un número de cobertura que nadie puede revisar.
+- **No tenemos calibración formal todavía.** El activo honesto es la banda P10 a P90, no un número de cobertura que nadie puede revisar.
 - **No diagnosticamos.** Orientamos. Los rangos son anchos a propósito y se muestran tan grandes como el número.
-
-## El repo
-
-| | |
-| --- | --- |
-| [`apps/mobile`](apps/mobile) | La app — Flutter, Material 3, Android e iOS. El producto. |
-| [`apps/backend`](apps/backend) | El motor — FastAPI + Postgres, en Render. Contrato en [`API.md`](apps/backend/API.md). |
-| [`apps/web`](apps/web) | Landing y pitch deck — Next.js 16 + Tailwind 4, en Vercel. |
-| [`design`](design) | Tokens, artboards y branding. |
-
-```bash
-npm ci && npm run dev                                   # web        → :3000
-cd apps/backend && uvicorn app.main:app --reload        # motor      → :8000/docs
-cd apps/mobile  && flutter run                          # app
-```
-
-El motor está especificado en [`MOIRAI_ENGINE_SPEC.md`](MOIRAI_ENGINE_SPEC.md).
 
 ## Equipo
 
