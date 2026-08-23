@@ -1,7 +1,7 @@
 """`POST /me/health-context/biomarkers/extract` through FastAPI's TestClient,
 with the database session and the Anthropic client faked: the biomarker
 upsert-by-name merge, the `hallazgos`-to-`notas_incertidumbre` merge (append,
-dedup, never overwrite), and the file-count/content-type guardrails."""
+dedup, never overwrite), and the content-type guardrail."""
 
 from __future__ import annotations
 
@@ -10,7 +10,6 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import CurrentUser, get_current_user
 from app.db import get_db
@@ -83,9 +82,11 @@ def client(health, monkeypatch):
         yield c
 
 
-def _upload(client, filename="informe.pdf", content_type="application/pdf", n=1):
-    files = [("files", (filename, _PDF_BYTES, content_type))] * n
-    return client.post("/me/health-context/biomarkers/extract", files=files)
+def _upload(client, filename="informe.pdf", content_type="application/pdf"):
+    return client.post(
+        "/me/health-context/biomarkers/extract",
+        files={"file": (filename, _PDF_BYTES, content_type)},
+    )
 
 
 def test_extraction_saves_biomarkers_and_hallazgos(client, health):
@@ -141,14 +142,8 @@ def test_implausible_reading_goes_to_advertencias_not_storage(client, health):
     assert health.biomarcadores == []
 
 
-def test_no_files_is_422(client, health):
-    r = client.post("/me/health-context/biomarkers/extract", files=[])
-    assert r.status_code == 422
-
-
-def test_too_many_files_is_422(client, health):
-    client.holder["fake"] = FakeAnthropic(ExtractionResult(lecturas=[]))
-    r = _upload(client, n=lab_upload.MAX_FILES_PER_REQUEST + 1)
+def test_no_file_is_422(client, health):
+    r = client.post("/me/health-context/biomarkers/extract")
     assert r.status_code == 422
 
 

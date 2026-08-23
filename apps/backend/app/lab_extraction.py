@@ -69,36 +69,20 @@ class ExtractionWarning(BaseModel):
     razon: str
 
 
-def build_prompt(n_documentos: int = 1) -> str:
+def build_prompt() -> str:
     tabla = "\n".join(f"- {nombre}: {sinonimos}" for nombre, sinonimos in _SYNONYMS.items())
-    intro = (
-        "Extrae del documento adjunto (un examen de laboratorio) cualquier lectura "
-        "que corresponda claramente a uno de estos biomarcadores."
-        if n_documentos == 1
-        else f"Se adjuntan {n_documentos} documentos (exámenes de laboratorio u otros "
-        "informes médicos relacionados, posiblemente páginas del mismo examen o "
-        "exámenes de fechas distintas). Extrae de **todos** ellos, en conjunto, "
-        "cualquier lectura que corresponda claramente a uno de estos biomarcadores."
-    )
-    conflicto = (
-        ""
-        if n_documentos == 1
-        else " Si el mismo biomarcador aparece en más de un documento con valores "
-        "distintos, repórtalo una sola vez con el valor del documento más reciente "
-        "(por fecha impresa) y menciona brevemente el conflicto en \"notas\"; si no "
-        "hay fecha para decidir, usa el que te parezca más confiable y dilo también "
-        "en \"notas\"."
-    )
-    return f"""{intro} Usa exactamente uno de estos nombres — no inventes otros:
+    return f"""Extrae del documento adjunto (un examen de laboratorio) cualquier lectura \
+que corresponda claramente a uno de estos biomarcadores. Usa exactamente uno \
+de estos nombres — no inventes otros:
 
 {tabla}
 
 Para cada lectura reconocida, reporta el valor y la unidad **exactamente como \
 aparecen impresos en el documento** — no conviertas unidades, no redondees. \
-Incluye un fragmento breve y textual de dónde lo leíste.{conflicto}
+Incluye un fragmento breve y textual de dónde lo leíste.
 
 Si un valor no corresponde con confianza a ninguno de estos biomarcadores, o \
-ningún documento lo indica, simplemente omítelo — no adivines.
+el documento no lo indica, simplemente omítelo — no adivines.
 
 Además, si el documento menciona algo clínicamente relevante que no sea uno \
 de estos biomarcadores — un diagnóstico, una recomendación del médico, un \
@@ -107,7 +91,7 @@ en "hallazgos": una frase breve y factual por cada uno, citando lo que dice \
 el documento, sin diagnosticar ni interpretar tú. Si no hay nada así, deja \
 "hallazgos" vacío.
 
-Si alguna parte de algún documento es ilegible o no se pudo procesar, dilo \
+Si alguna parte del documento es ilegible o no se pudo procesar, dilo \
 brevemente en "notas"."""
 
 

@@ -266,36 +266,23 @@ from an age/sex reference median when you call `/phenoage` or `/montecarlo`
 ### `POST /me/health-context/biomarkers/extract` → `200`
 
 **Not JSON** — the one exception to the "every body is JSON" convention
-above. Upload one or more lab-exam documents as `multipart/form-data`,
-**repeating the field name `files`** once per file (pages of the same exam,
-or a few separate exams/reports from the same visit):
+above. Upload a single lab-exam document as `multipart/form-data`, field
+name `file`:
 ```
 Content-Type: multipart/form-data; boundary=...
 
 --...
-Content-Disposition: form-data; name="files"; filename="examen1.pdf"
+Content-Disposition: form-data; name="file"; filename="examen.pdf"
 Content-Type: application/pdf
-
-<file bytes>
---...
-Content-Disposition: form-data; name="files"; filename="examen2.jpg"
-Content-Type: image/jpeg
 
 <file bytes>
 --...--
 ```
-Accepted `Content-Type` per file: `application/pdf`, `image/png`,
-`image/jpeg`, `image/webp`. `422` if any file's type isn't one of those four,
-if no files are sent, or if more than 5 are sent in one request. Size limits,
-checked before anything is sent to Claude: `413` if any single file exceeds
-`MAX_UPLOAD_MB` (default 10MB), or if the **combined** size of all files
-exceeds 20MB.
+Accepted `Content-Type`: `application/pdf`, `image/png`, `image/jpeg`,
+`image/webp`. `422` if the type isn't one of those four (or if no file is
+sent). `413` if it exceeds `MAX_UPLOAD_MB` (default 10MB).
 
-All files go to Claude in a single request (multiple documents, one call),
-so it can reconcile a biomarker that shows up on more than one of them
-instead of reading each file blind to the others — told to prefer the most
-recently dated document on a conflict and note it in `notas`. Whatever it
-extracts (across however many files you sent) **writes straight into
+Whatever Claude extracts from the document **writes straight into
 `health_context.biomarcadores` itself** — no separate `PATCH` call needed.
 Unlike a normal `PATCH` (which replaces the whole array), this **merges by
 `nombre`**: an extracted reading overwrites the existing entry with the same
@@ -332,14 +319,15 @@ hand, or from an earlier upload) is left untouched.
   no known conversion, or implausible value even after conversion) — **not
   saved**. A document that's readable but has zero recognizable biomarkers
   is a normal `200` with empty `guardados`/`advertencias`, not an error.
-- `hallazgos` — clinically relevant things the document(s) say that aren't
+- `hallazgos` — clinically relevant things the document says that aren't
   one of the 12 biomarkers (a diagnosis, a doctor's recommendation, a
   mentioned allergy or family history) — short and factual, Claude quoting
   rather than interpreting. Automatically **appended** to
-  `health_context.notas_incertidumbre` (never overwritten — an earlier
-  upload's or a manual `PATCH`'s notes survive). `notas_incertidumbre` in
-  this response is the full accumulated value after that append, same field
-  `GET /me/health-context` returns.
+  `health_context.notas_incertidumbre` (never overwritten, and never
+  duplicated if the same finding shows up again on a later upload — an
+  earlier upload's or a manual `PATCH`'s notes survive). `notas_incertidumbre`
+  in this response is the full accumulated value after that append, same
+  field `GET /me/health-context` returns.
 - Units are converted deterministically in Python (a small fixed table: e.g.
   glucose/cholesterol in mmol/L, creatinine in umol/L, CRP in mg/dL) — Claude
   reports the value exactly as printed and never does the unit math itself.
