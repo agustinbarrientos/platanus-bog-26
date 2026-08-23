@@ -616,6 +616,35 @@ html:has(.moirai) {
   opacity: 0.6;
 }
 
+/* Engine stages. Desktop shows only the active one; mobile lays all three out
+   side by side as a carousel, which also makes their heights match. */
+.mo-eng__wrap {
+  position: relative;
+}
+.mo-eng__slide {
+  padding: 20px 24px 12px;
+}
+.mo-eng__slide:not(.mo-eng__slide--on) {
+  display: none;
+}
+.mo-eng__cap {
+  height: 26px;
+  margin-top: 2px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 14.5px;
+  color: var(--n-600);
+}
+.mo-eng__hint,
+.mo-eng__arrow {
+  display: none;
+}
+.mo-eng__counter {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
 /* ------------------------------------------------------------------ chat */
 
 .mo-chat__card {
@@ -984,7 +1013,14 @@ html:has(.moirai) {
   .mo-hero__row {
     justify-content: center;
     padding-top: 104px;
+    padding-bottom: 0;
     gap: 60px;
+  }
+  .mo-hand {
+    top: 0;
+  }
+  .mo-stats {
+    display: none;
   }
   .mo-hero__col {
     min-width: 0;
@@ -1049,14 +1085,102 @@ html:has(.moirai) {
     font-size: 34px !important;
   }
   .mo-stage-pills {
-    flex-direction: column;
-    align-items: stretch;
+    display: none;
   }
-  .mo-stage-pills > button {
-    width: auto;
-    max-width: 100%;
+  .mo-eng__counter {
+    align-items: center;
+    width: 100%;
+  }
+  /* The track runs the full width of the section so the cards keep their
+     shadows and the page background shows through, while the slides stay
+     inset by the panel's own padding. */
+  .mo-eng__wrap {
+    margin-left: -28px;
+    margin-right: -28px;
+    width: calc(100% + 56px);
+  }
+  .mo-eng__track {
+    display: flex;
+    align-items: stretch;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    gap: 16px;
+    padding: 4px 28px 14px;
+    scroll-padding-left: 28px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    width: 100%;
     box-sizing: border-box;
-    justify-content: flex-start;
+  }
+  .mo-eng__track::-webkit-scrollbar {
+    display: none;
+  }
+  .mo-eng__slide,
+  .mo-eng__slide:not(.mo-eng__slide--on) {
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 calc(100vw - 56px);
+    max-width: calc(100vw - 56px);
+    box-sizing: border-box;
+    scroll-snap-align: center;
+  }
+  .mo-eng__figure {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .mo-eng__slide {
+    --mo-cal-max: 300px;
+  }
+  /* The calibration card carries the most copy of the three, and the graph
+     needs the room more than the last line of prose does. */
+  .mo-eng__proof > div:first-child {
+    font-size: 44px !important;
+  }
+  .mo-eng__proof > div:last-child {
+    display: none;
+  }
+  .mo-eng__cap {
+    height: auto;
+    min-height: 44px;
+    padding-top: 8px;
+  }
+  .mo-eng__hint {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    padding: 0 0 14px;
+    font-weight: 700;
+    font-size: 12.5px;
+    color: var(--n-400);
+  }
+  .mo-eng__arrow {
+    display: flex;
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 6;
+    width: 46px;
+    height: 46px;
+    border-radius: 23px;
+    background: #fff;
+    border: 1px solid var(--n-200);
+    box-shadow:
+      0 3px 10px rgba(35, 45, 53, 0.1),
+      0 12px 26px rgba(44, 110, 140, 0.16);
+    align-items: center;
+    justify-content: center;
+    color: var(--sky-600);
+    cursor: pointer;
+  }
+  .mo-eng__arrow--prev {
+    left: 12px;
+  }
+  .mo-eng__arrow--next {
+    right: 12px;
   }
   .mo-chat__card {
     flex: 1 1 100%;
