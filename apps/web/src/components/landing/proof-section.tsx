@@ -120,7 +120,7 @@ export function ProofSection() {
             </div>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4, paddingBottom: 6 }}>
               <div style={{ fontWeight: 700, fontSize: 14.5, lineHeight: 1.4, color: "#232D35" }}>
-                de las veces mi rango del 90% contuvo el resultado real
+                de las veces acerté dentro de mi rango
               </div>
               <div style={{ fontWeight: 600, fontSize: 12.5, color: "#8D9BA8" }}>
                 El objetivo es 90%: me faltan dos puntos.

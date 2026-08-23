@@ -15,7 +15,7 @@ import {
 import { ChevronLeftIcon, ChevronRightIcon, NudgeArrowIcon } from "./icons";
 
 /**
- * "Simulo tu vida diez mil veces" — the pinned engine scene.
+ * "Cuántos años sanos tienes por delante" — the pinned engine scene.
  *
  * Scrolling through the section walks three views of the same simulation:
  * the trajectories being drawn one by one, the distribution they collapse
@@ -27,9 +27,9 @@ const F = "var(--font-fredoka), system-ui, sans-serif";
 const clamp = (x: number) => Math.max(0, Math.min(1, x));
 
 const PILLS: { stage: Stage; label: string }[] = [
-  { stage: 1, label: "Diez mil trayectorias" },
-  { stage: 2, label: "Distribución" },
-  { stage: 3, label: "Calibración" },
+  { stage: 1, label: "Tus vidas posibles" },
+  { stage: 2, label: "Tu rango" },
+  { stage: 3, label: "Qué tan bien acierto" },
 ];
 
 const CAPTIONS: Record<Stage, (local: number) => string> = {
@@ -402,11 +402,11 @@ export function EngineSection() {
           <div style={{ display: "flex", alignItems: "flex-end", gap: 20, flexWrap: "wrap" }}>
             <div className="mo-col" style={{ gap: 7 }}>
               <h2 className="mo-h2" style={{ fontSize: 40, lineHeight: 1.1 }}>
-                Simulo tu vida diez mil veces
+                Cuántos años sanos tienes por delante
               </h2>
               <p className="mo-lede" style={{ fontSize: 15.5, lineHeight: 1.55, maxWidth: 600 }}>
-                Cada vida avanza año por año con tus números. Luego repito todo cambiando una sola
-                cosa, y esa diferencia es tu respuesta.
+                Simulo tu vida diez mil veces. Luego cambio una sola cosa y repito, y esa diferencia
+                es lo que puedes ganar.
               </p>
             </div>
             <div className="mo-eng__counter">
