@@ -9,6 +9,7 @@ import '../../app/theme/tokens.dart';
 import '../../core/format.dart';
 import '../../data/models/simulacion.dart';
 import '../../data/repositories/demo_data.dart';
+import '../../data/repositories/simulation_repository.dart';
 import '../../widgets/mascot.dart';
 import '../../widgets/mo.dart';
 
@@ -19,11 +20,13 @@ class FutureEmptyState extends ConsumerWidget {
   const FutureEmptyState({
     super.key,
     this.title = 'Todavía no he recorrido tus futuros',
-    this.subtitle = 'Cuéntame un poco de ti y corro 5.000 versiones de tu futuro para ver qué depende de ti.',
+    this.subtitle,
   });
 
   final String title;
-  final String subtitle;
+
+  /// Null → el copy por defecto, con el N real del motor.
+  final String? subtitle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -42,7 +45,9 @@ class FutureEmptyState extends ConsumerWidget {
         const SizedBox(height: Sp.x4),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: Sp.x3),
-          child: Text(subtitle, textAlign: TextAlign.center, style: t.bodyLarge!.copyWith(color: MoiraiColors.ink2)),
+          child: Text(
+            subtitle ?? 'Cuéntame un poco de ti y corro ${Fmt.entero(SimulationRepository.nTrayectorias)} versiones de tu futuro para ver qué depende de ti.',
+            textAlign: TextAlign.center, style: t.bodyLarge!.copyWith(color: MoiraiColors.ink2)),
         ).stagger(2),
         const SizedBox(height: Sp.x8),
         if (running != null) ...[

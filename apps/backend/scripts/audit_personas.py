@@ -41,7 +41,7 @@ for name, p in PERSONAS.items():
     singles = [k for k in PALANCAS if aplica(k, br)]
     combos = ["+".join(c) for k in (2,3) for c in combinations(singles, k)]
     t0=time.time()
-    res = montecarlo.simular(p["bm"], p["edad"], p["sexo"], ["ninguna", *singles, *combos], 5000, 10, brechas=br)
+    res = montecarlo.simular(p["bm"], p["edad"], p["sexo"], ["ninguna", *singles, *combos], montecarlo.DEFAULT_TRAYECTORIAS, 10, brechas=br)
     dt=time.time()-t0
     b = res.escenarios[0]
     print(f"  [{dt:.2f}s, {len(res.escenarios)} escenarios] brechas={ {k:v for k,v in (br or {}).items()} }")

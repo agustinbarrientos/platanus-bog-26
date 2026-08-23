@@ -9,7 +9,7 @@ en `t+1`. Aplicada 10 veces da una trayectoria de 10 años. Esto es lo que
 Por qué existe este módulo por separado: la regla estaba escrita inline dentro
 del bucle vectorizado de `montecarlo.py`, lo que hacía imposible correr el test
 de signos de §5 —que exige comparar dos trayectorias *deterministas*— sin
-mirarlo a través de 5.000 corridas con ruido. `deriva_total()` es la única
+mirarlo a través de 10.000 corridas con ruido. `deriva_total()` es la única
 fuente de verdad de la regla y la usan las dos capas: el paso determinista de
 acá y el paso con ruido de la Capa 3 (que la descompone con
 `deriva_natural` / `ajuste_habitos` / `efectos_palancas` / `factor_combinacion`

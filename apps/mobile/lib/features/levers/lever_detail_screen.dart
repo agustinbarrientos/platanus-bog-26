@@ -9,6 +9,7 @@ import '../../app/theme/tokens.dart';
 import '../../core/format.dart';
 import '../../data/mock/mock_engine.dart';
 import '../../data/models/simulacion.dart';
+import '../../data/repositories/simulation_repository.dart';
 import '../../widgets/big_number.dart';
 import '../../widgets/fan_chart.dart';
 import '../../widgets/mascot.dart';
@@ -138,10 +139,10 @@ class _LeverDetailScreenState extends ConsumerState<LeverDetailScreen> {
                 ? [
                     const TextSpan(text: 'Corrí '),
                     TextSpan(text: 'los mismos', style: TextStyle(color: MoiraiColors.ink, fontWeight: FontWeight.w800)),
-                    TextSpan(text: ' ${Fmt.entero(5000)} futuros otra vez, cambiando solo esto: misma semilla, mismos arranques, misma respuesta de cada vida. La banda verde es la pareja exacta de la gris.'),
+                    TextSpan(text: ' ${Fmt.entero(SimulationRepository.nTrayectorias)} futuros otra vez, cambiando solo esto: misma semilla, mismos arranques, misma respuesta de cada vida. La banda verde es la pareja exacta de la gris.'),
                   ]
                 : [
-                    TextSpan(text: 'Comparé tus ${Fmt.entero(5000)} futuros con y sin esto. El servidor no me dio las trayectorias pareadas, así que el rango y el porcentaje son una aproximación.'),
+                    TextSpan(text: 'Comparé tus ${Fmt.entero(SimulationRepository.nTrayectorias)} futuros con y sin esto. El servidor no me dio las trayectorias pareadas, así que el rango y el porcentaje son una aproximación.'),
                   ],
           ),
         ).animate().fadeIn(duration: Motion.slow).slideY(begin: .05, end: 0, curve: Motion.out, duration: Motion.slow),
@@ -178,7 +179,7 @@ class _LeverDetailScreenState extends ConsumerState<LeverDetailScreen> {
                 ],
               ),
               const SizedBox(height: 6),
-              Text('Edad biológica en $horizonte años, mediana de los ${Fmt.entero(5000)} futuros.', style: t.bodySmall),
+              Text('Edad biológica en $horizonte años, mediana de los ${Fmt.entero(SimulationRepository.nTrayectorias)} futuros.', style: t.bodySmall),
             ],
           ),
         ).stagger(1),

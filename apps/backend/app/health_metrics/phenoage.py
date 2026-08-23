@@ -126,7 +126,7 @@ def contribuciones(
     su mediana de referencia). Un biomarcador imputado contribuye exactamente
     0 — ya ES la mediana. Es la explicación tipo SHAP-sobre-el-basal de la
     spec §7: suficiente para decir "tu RDW es tu eje dominante"; no es SHAP
-    sobre las 5.000 trayectorias (spec §12)."""
+    sobre las 10.000 trayectorias (spec §12)."""
     base = phenoage_years(to_formula_units(valores_usados), edad)
     ref = reference_person(edad, sexo_biologico)
     out: dict[str, float] = {}

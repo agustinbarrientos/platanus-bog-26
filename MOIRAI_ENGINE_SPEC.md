@@ -51,7 +51,7 @@ INPUT (biomarcadores + hábitos)
                   ▼
 ┌─────────────────────────────────────────────┐
 │ CAPA 3 — MONTE CARLO (incertidumbre)         │
-│ corre la Capa 2 N=5000 veces con ruido       │
+│ corre la Capa 2 N=10000 veces con ruido      │
 │ → abanico de futuros: mediana, P10, P90      │
 │ ESTO da honestidad + el wow visual.          │
 └─────────────────┬───────────────────────────┘
@@ -222,13 +222,13 @@ Una trayectoria "sin intervención" debe envejecer más rápido que una "con bue
 ## 6. CAPA 3 — MONTE CARLO (incertidumbre + wow)
 
 ### Qué hace
-El cuerpo no es determinista. Corre la Capa 2 N=5000 veces; en cada paso anual añade ruido biológico aleatorio. Las 5000 trayectorias forman el abanico.
+El cuerpo no es determinista. Corre la Capa 2 N=10000 veces; en cada paso anual añade ruido biológico aleatorio. Las 10000 trayectorias forman el abanico.
 
 ```python
 import numpy as np
 
 def monte_carlo(estado0: dict, intervenciones: list, edad0: float,
-                anios: int = 10, N: int = 5000, sigma: dict = None) -> dict:
+                anios: int = 10, N: int = 10000, sigma: dict = None) -> dict:
     """
     sigma: desviación estándar del ruido anual por biomarcador.
     Mayor sigma para biomarcadores imputados (más incertidumbre).
@@ -306,7 +306,7 @@ import shap
 # -> top drivers positivos (empeoran) y negativos (mejoran)
 ```
 
-> Para el demo, SHAP puede correr sobre el estado basal (no sobre las 5000 trayectorias). Basta para explicar "tu sueño es tu mayor palanca".
+> Para el demo, SHAP puede correr sobre el estado basal (no sobre las 10000 trayectorias). Basta para explicar "tu sueño es tu mayor palanca".
 
 ---
 
@@ -398,7 +398,7 @@ perfil_test = {
 - ❌ Modelo biofísico "real" de envejecimiento (es modelo de trayectorias plausibles).
 - ❌ Coeficientes inventados presentados como verdad (siempre "aproximados, de literatura").
 - ❌ Más de 3 intervenciones simultáneas en el barrido (evita explosión combinatoria).
-- ❌ Correr SHAP sobre las 5000 trayectorias (basal basta para el demo).
+- ❌ Correr SHAP sobre las 10000 trayectorias (basal basta para el demo).
 
 ---
 

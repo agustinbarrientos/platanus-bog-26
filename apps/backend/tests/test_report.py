@@ -9,6 +9,7 @@ import re
 
 import pytest
 
+from app.health_metrics import montecarlo
 from app.health_metrics.ejes import evaluar_ejes, triage
 from app.health_metrics.reference_ranges import clasificar
 from app.report.builder import construir_reporte, fmt, fmt_delta, textos_del_reporte
@@ -230,7 +231,7 @@ def test_endpoint_json(client):
     assert j["meta"]["id"].startswith("rep_")
     # Sin cuerpo también funciona (defaults del motor, lo que la app usa).
     r2 = client.post("/me/health-context/reporte")
-    assert r2.status_code == 200 and r2.json()["meta"]["trayectorias_por_escenario"] == 5000
+    assert r2.status_code == 200 and r2.json()["meta"]["trayectorias_por_escenario"] == montecarlo.DEFAULT_TRAYECTORIAS
 
 
 def test_endpoint_pdf(client):

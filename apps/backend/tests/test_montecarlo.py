@@ -167,7 +167,7 @@ def test_todas_las_palancas_sueltas_ganan_en_el_monte_carlo():
 
 
 def test_es_rapido_con_el_barrido_completo():
-    """41 escenarios × 5.000 trayectorias × 10 años en bien menos de lo que
+    """41 escenarios × 10.000 trayectorias × 10 años en bien menos de lo que
     tarda Render en despertar: el endpoint no puede bloquearse segundos."""
     import time
     from itertools import combinations
@@ -176,6 +176,6 @@ def test_es_rapido_con_el_barrido_completo():
     for k in (2, 3):
         escenarios += ["+".join(c) for c in combinations(PALANCAS, k)]
     t0 = time.perf_counter()
-    r = montecarlo.simular({}, 50, "M", escenarios, 5000, 10, brechas=brechas_desde_habitos({}))
+    r = montecarlo.simular({}, 50, "M", escenarios, montecarlo.DEFAULT_TRAYECTORIAS, 10, brechas=brechas_desde_habitos({}))
     assert len(r.escenarios) == len(escenarios)
     assert time.perf_counter() - t0 < 5.0

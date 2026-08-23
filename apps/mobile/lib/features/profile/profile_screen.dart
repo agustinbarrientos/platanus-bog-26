@@ -209,6 +209,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _aviso = null;
     });
     try {
+      // Los MP3 cacheados son respuestas sobre la salud de esta persona: no
+      // tienen por qué sobrevivir a su sesión.
+      unawaited(ref.read(voiceRepositoryProvider).limpiarCache());
       // Borra la sesión local de inmediato (el router redirige solo); la
       // revocación en el backend corre en segundo plano.
       await ref.read(authRepositoryProvider).signOut();

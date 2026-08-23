@@ -59,7 +59,7 @@ from app.health_metrics.phenoage import phenoage_years_vector
 MAX_TRAYECTORIAS = 20_000
 MAX_ANIOS = 30
 
-DEFAULT_TRAYECTORIAS = 5000
+DEFAULT_TRAYECTORIAS = 10_000
 DEFAULT_ANIOS = 10
 #: Semilla por defecto: el mismo input da el mismo abanico (reproducible en un
 #: demo y entre escenarios). El caller puede pasar otra.

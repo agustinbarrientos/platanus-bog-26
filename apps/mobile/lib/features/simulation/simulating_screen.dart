@@ -10,6 +10,7 @@ import '../../app/router.dart';
 import '../../app/theme/tokens.dart';
 import '../../core/format.dart';
 import '../../data/models/simulacion.dart';
+import '../../data/repositories/simulation_repository.dart';
 import '../../widgets/big_number.dart';
 import '../../widgets/fan_chart.dart';
 import '../../widgets/mascot.dart';
@@ -44,7 +45,7 @@ class _SimulatingScreenState extends ConsumerState<SimulatingScreen> with Ticker
 
   /// Progreso actual: solo el contador y el abanico lo escuchan, la pantalla
   /// entera no se reconstruye por evento del stream.
-  final _progreso = ValueNotifier<SimulacionProgreso>(const SimulacionProgreso(fraccion: 0, vidas: 0, totalVidas: 5000));
+  final _progreso = ValueNotifier<SimulacionProgreso>(const SimulacionProgreso(fraccion: 0, vidas: 0, totalVidas: SimulationRepository.nTrayectorias));
   SimulacionResultado? _resultado;
   bool _terminando = false;
   bool _hojaAbierta = false;
@@ -84,7 +85,7 @@ class _SimulatingScreenState extends ConsumerState<SimulatingScreen> with Ticker
         _terminando = true;
         _resultado = resultado;
         final prev = _progreso.value;
-        final total = prev.totalVidas > 1 ? prev.totalVidas : 5000;
+        final total = prev.totalVidas > 1 ? prev.totalVidas : SimulationRepository.nTrayectorias;
         final tray = resultado.muestraTrayectorias.isNotEmpty ? resultado.muestraTrayectorias : prev.trayectoriasParciales;
         _progreso.value = SimulacionProgreso(fraccion: 1, vidas: total, totalVidas: total, trayectoriasParciales: tray);
         _animarLineas(tray.length, porLinea: 12);

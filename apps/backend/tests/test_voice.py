@@ -121,12 +121,76 @@ def test_estado_disponible():
     c = _app(lambda r: httpx.Response(200))
     r = c.get("/me/voice/estado")
     assert r.status_code == 200
-    assert r.json() == {
-        "disponible": True,
-        "modelo_tts": "eleven_flash_v2_5",
-        "modelo_stt": "scribe_v2",
-        "max_caracteres": 1500,
-    }
+    j = r.json()
+    assert j["disponible"] is True
+    assert j["modelo_tts"] == "eleven_flash_v2_5"
+    assert j["modelo_stt"] == "scribe_v2"
+    assert j["max_caracteres"] == 1500
+    # Sin ?verificar no se le pregunta nada a ElevenLabs.
+    assert j["voz_ok"] is None and j["motivo"] is None
+
+
+def _handler_verificacion(voz: httpx.Response, sub: httpx.Response | None = None):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "/user/subscription" in str(request.url):
+            return sub or httpx.Response(200, json={"character_limit": 10000, "character_count": 1580})
+        return voz
+
+    return handler
+
+
+def test_verificar_todo_bien():
+    c = _app(_handler_verificacion(httpx.Response(200, json={"name": "Moirai"})))
+    j = c.get("/me/voice/estado", params={"verificar": True}).json()
+    assert j["voz_ok"] is True
+    assert j["nombre_voz"] == "Moirai"
+    assert j["creditos_restantes"] == 8420
+    assert j["motivo"] is None
+
+
+def test_verificar_voice_id_inexistente():
+    """El error más probable al configurar esto por primera vez: se pegó un
+    id que no está en la cuenta (o una voz de la librería sin agregar)."""
+    c = _app(_handler_verificacion(httpx.Response(404, json={"detail": "not found"})))
+    j = c.get("/me/voice/estado", params={"verificar": True}).json()
+    assert j["voz_ok"] is False
+    assert VOZ in j["motivo"]
+    assert "My Voices" in j["motivo"]
+
+
+def test_verificar_key_invalida():
+    c = _app(_handler_verificacion(httpx.Response(401, json={"detail": "unauthorized"})))
+    j = c.get("/me/voice/estado", params={"verificar": True}).json()
+    assert j["voz_ok"] is False
+    assert "ELEVENLABS_API_KEY" in j["motivo"]
+
+
+def test_verificar_sin_creditos():
+    c = _app(_handler_verificacion(
+        httpx.Response(200, json={"name": "Moirai"}),
+        httpx.Response(200, json={"character_limit": 10000, "character_count": 10000}),
+    ))
+    j = c.get("/me/voice/estado", params={"verificar": True}).json()
+    assert j["voz_ok"] is False
+    assert j["creditos_restantes"] == 0
+    assert "créditos" in j["motivo"]
+
+
+def test_verificar_sin_configurar_dice_que_falta():
+    c = _app(lambda r: httpx.Response(200), voice_id="")
+    j = c.get("/me/voice/estado", params={"verificar": True}).json()
+    assert j["voz_ok"] is False
+    assert j["motivo"] == "falta ELEVENLABS_VOICE_ID en el entorno"
+
+
+def test_verificar_sin_red():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("sin red", request=request)
+
+    c = _app(handler)
+    j = c.get("/me/voice/estado", params={"verificar": True}).json()
+    assert j["voz_ok"] is False
+    assert "contactar a ElevenLabs" in j["motivo"]
 
 
 def test_estado_sin_configurar():
