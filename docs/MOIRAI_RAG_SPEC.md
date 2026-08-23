@@ -80,6 +80,7 @@ Cada agente recibe solo los chunks relevantes a su rol -> respuestas ancladas y 
 ## 4. ARQUITECTURA TÉCNICA DEL RAG
 
 ```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 460}}}%%
 flowchart TD
     pdfs["PDFs (corpus sección 3)"]
     ingesta["INGESTA<br/>extraer texto (pdfplumber) + metadata<br/>autor, año, journal, grupo A-E"]

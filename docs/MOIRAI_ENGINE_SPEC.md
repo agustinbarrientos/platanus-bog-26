@@ -31,6 +31,7 @@ Tomar los biomarcadores y hábitos de una persona, medir su edad biológica hoy,
 ## 2. ARQUITECTURA DE TRES CAPAS (el modelo mental)
 
 ```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 460}}}%%
 flowchart TD
     entrada["INPUT<br/>biomarcadores + hábitos"]
     capa1["CAPA 1 - MEDIDOR (PhenoAge)<br/>estado actual -> edad biológica HOY<br/>Fórmula con pesos publicados. Determinista.<br/>NO predice: mide el presente."]
