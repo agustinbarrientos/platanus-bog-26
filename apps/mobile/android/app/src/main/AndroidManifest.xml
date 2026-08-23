@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.CAMERA"/>
+    <!-- Micrófono: hacerle preguntas a Moirai hablando (POST /me/voice/stt). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
 
     <!-- Health Connect (lectura de wearables). Solo lectura; nunca escribimos. -->
@@ -54,6 +56,11 @@
             android:value="2" />
     </application>
     <queries>
+        <!-- Android 11+: flutter_tts necesita ver el motor de síntesis del
+             sistema, la voz de respaldo cuando el backend no puede hablar. -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE"/>
+        </intent>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>

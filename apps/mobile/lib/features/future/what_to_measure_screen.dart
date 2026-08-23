@@ -12,23 +12,25 @@ import '../../widgets/mascot.dart';
 import '../../widgets/mo.dart';
 
 /// "¿Qué te conviene medir?": qué biomarcador faltante (imputado) angostaría
-/// más la banda P10–P90 si lo midieras. El ranking es una heurística local
-/// (pesos fijos normalizados sobre lo que falta); el motor todavía no calcula
-/// valor de información.
+/// más la banda P10–P90 si lo midieras. El ranking viene del motor
+/// (`valor_de_informacion`: vuelve a correr la línea base con ese biomarcador
+/// fijo y mide cuánto se angosta la banda a 10 años). Si el resultado no lo
+/// trae (backend viejo o sin simulación), cae a una heurística local con
+/// pesos fijos y lo dice.
 class WhatToMeasureScreen extends ConsumerWidget {
   const WhatToMeasureScreen({super.key});
 
-  /// Cuánto suele angostar el rango cada biomarcador cuando deja de estar
-  /// imputado (aproximación propia, no del motor).
+  /// Heurística de respaldo: peso relativo de cada biomarcador en la fórmula
+  /// por su dispersión típica (RDW domina, luego creatinina y VCM).
   static const _pesos = <String, double>{
-    'hs_CRP': .30,
-    'glucosa': .22,
-    'rdw': .14,
-    'albumina': .10,
-    'creatinina': .08,
-    'leucocitos': .06,
-    'linfocitos_pct': .04,
-    'vcm': .03,
+    'rdw': .40,
+    'creatinina': .13,
+    'vcm': .11,
+    'glucosa': .08,
+    'albumina': .07,
+    'leucocitos': .07,
+    'hs_CRP': .06,
+    'linfocitos_pct': .05,
     'fosfatasa_alcalina': .03,
   };
 
@@ -43,10 +45,19 @@ class WhatToMeasureScreen extends ConsumerWidget {
         ? usados.where((b) => b.inferido).map((b) => b.nombre).toList()
         : List<String>.of(input.datosFaltantes);
 
-    final total = faltantes.fold<double>(0, (s, id) => s + (_pesos[id] ?? .02));
-    final filas = [
-      for (final id in faltantes) (id: id, fraccion: total == 0 ? 0.0 : (_pesos[id] ?? .02) / total),
-    ]..sort((a, b) => b.fraccion.compareTo(a.fraccion));
+    final voi = r?.valorDeInformacion ?? const [];
+    final delMotor = voi.isNotEmpty;
+    final List<({String id, double fraccion, double? reduccion})> filas;
+    if (delMotor) {
+      filas = [for (final v in voi) (id: v.nombre, fraccion: v.fraccion, reduccion: v.reduccionAnios)]
+        ..sort((a, b) => b.fraccion.compareTo(a.fraccion));
+    } else {
+      final total = faltantes.fold<double>(0, (s, id) => s + (_pesos[id] ?? .02));
+      filas = [
+        for (final id in faltantes) (id: id, fraccion: total == 0 ? 0.0 : (_pesos[id] ?? .02) / total, reduccion: null),
+      ]..sort((a, b) => b.fraccion.compareTo(a.fraccion));
+    }
+    final anchoHoy = r?.anchoBandaHoy ?? 0;
 
     return MoScreen(
       appBar: AppBar(
@@ -91,21 +102,31 @@ class WhatToMeasureScreen extends ConsumerWidget {
         if (filas.isEmpty)
           const _TodoMedido().stagger(1)
         else ...[
+          if (anchoHoy > 0) ...[
+            MoNotice(
+              tone: MoTone.brand,
+              icon: Icons.blur_on_rounded,
+              text: 'Hoy mismo tu edad biológica se mueve en una banda de ${Fmt.decimal(anchoHoy)} años (P10–P90) solo por lo que falta medir.',
+            ).stagger(1),
+            const SizedBox(height: Sp.x5),
+          ],
           Row(
             children: [
               MoOverline('${filas.length} de 9 todavía ${filas.length == 1 ? 'inferido' : 'inferidos'}'),
               const Spacer(),
-              const MoOverline('cuánto angosta el rango'),
+              MoOverline(delMotor ? 'cuánto angosta la banda' : 'cuánto angosta el rango'),
             ],
           ).stagger(1),
           const SizedBox(height: Sp.x4),
           for (var i = 0; i < filas.length; i++) ...[
-            _VoiRow(id: filas[i].id, fraccion: filas[i].fraccion, primera: i == 0, index: i).stagger(i + 2),
+            _VoiRow(id: filas[i].id, fraccion: filas[i].fraccion, reduccion: filas[i].reduccion, primera: i == 0, index: i).stagger(i + 2),
             if (i < filas.length - 1) const SizedBox(height: Sp.x3),
           ],
           const SizedBox(height: Sp.x5),
           MoFootnote(
-            'El porcentaje es qué parte del rango que me falta angostar depende de ese dato. Es una aproximación mía; el motor no calcula todavía valor de información.',
+            delMotor
+                ? 'Los años son cuánto se angosta la banda P10–P90 a 10 años si mides ese dato: volví a correr tus futuros con ese valor fijo, misma semilla. El porcentaje es su parte del total.'
+                : 'El porcentaje es qué parte del rango que me falta angostar depende de ese dato. Es una aproximación mía; simula de nuevo para que lo calcule el motor.',
             center: false,
           ).stagger(filas.length + 2),
         ],
@@ -120,9 +141,12 @@ class WhatToMeasureScreen extends ConsumerWidget {
 }
 
 class _VoiRow extends StatelessWidget {
-  const _VoiRow({required this.id, required this.fraccion, required this.primera, required this.index});
+  const _VoiRow({required this.id, required this.fraccion, required this.reduccion, required this.primera, required this.index});
   final String id;
   final double fraccion;
+
+  /// Años de banda que se angostan (del motor); null en la heurística local.
+  final double? reduccion;
   final bool primera;
   final int index;
 
@@ -132,6 +156,7 @@ class _VoiRow extends StatelessWidget {
     final def = BiomarcadorDef.byId(id);
     final nombre = def?.nombre ?? id;
     final ayuda = def?.ayuda ?? 'Pídelo en tu próximo examen de sangre.';
+    final red = reduccion;
     return MoCard(
       tone: primera ? MoTone.brand : MoTone.plain,
       padding: const EdgeInsets.fromLTRB(16, 15, 16, 15),
@@ -145,11 +170,15 @@ class _VoiRow extends StatelessWidget {
               Expanded(child: Text(nombre, style: t.titleMedium)),
               const SizedBox(width: Sp.x3),
               Text(
-                '−${Fmt.pct(fraccion * 100)}',
+                red != null ? '−${Fmt.decimal(red)} años' : '−${Fmt.pct(fraccion * 100)}',
                 style: t.headlineSmall!.copyWith(color: MoiraiColors.blueInk, fontFeatures: const [FontFeature.tabularFigures()]),
               ),
             ],
           ),
+          if (red != null) ...[
+            const SizedBox(height: 2),
+            Align(alignment: Alignment.centerRight, child: Text('${Fmt.pct(fraccion * 100)} de lo que falta', style: t.labelMedium!.copyWith(color: MoiraiColors.ink2))),
+          ],
           const SizedBox(height: Sp.x3),
           ClipRRect(
             borderRadius: BorderRadius.circular(Rad.xs),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../api/api_client.dart';
 import '../api/token_store.dart';
 
@@ -54,11 +56,16 @@ class AuthRepository {
     }
   }
 
+  /// Cerrar sesión nunca depende de la red: primero se borra la sesión local
+  /// (el router redirige al instante) y la revocación en el backend queda en
+  /// segundo plano, best-effort y con timeout corto. Importante: `_api.post`
+  /// lee el token de forma síncrona al arrancar (antes de su primer `await`),
+  /// así que hay que crear el Future ANTES de `clear()` para que lleve el
+  /// `Authorization` correcto.
   Future<void> signOut() async {
-    try {
-      await _api.post('/auth/logout');
-    } catch (_) {}
+    final revocar = _api.post('/auth/logout', timeout: const Duration(seconds: 8)).then((_) {}, onError: (_) {});
     await _tokens.clear();
+    unawaited(revocar);
   }
 
   Future<void> changePassword({required String current, required String nueva}) async {

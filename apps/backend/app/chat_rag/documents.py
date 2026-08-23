@@ -32,7 +32,7 @@ from app.chat_rag.knowledge import (
     direccion_en_phenoage,
 )
 from app.health_metrics.biomarkers import BIOMARKER_SPECS, PHENOAGE_BIOMARKERS
-from app.health_metrics.interventions import SCENARIOS
+from app.health_metrics.interventions import PALANCAS, SCENARIOS, aplica, brechas_desde_habitos
 from app.health_metrics.nhanes_reference import median_for
 from app.health_metrics.phenoage import PhenoAgeResult
 
@@ -64,7 +64,9 @@ _NOMBRE_VARIABLE = {
     "hs_CRP": "la inflamación (hs-CRP)", "glucosa": "la glucosa", "albumina": "la albúmina",
     "creatinina": "la creatinina", "rdw": "el RDW", "leucocitos": "los leucocitos",
     "linfocitos_pct": "los linfocitos", "vcm": "el VCM", "fosfatasa_alcalina": "la fosfatasa alcalina",
-    "sueno_h": "el sueño", "estres": "el estrés", "ejercicio": "el ejercicio", "tabaco": "el tabaco",
+    "sueno_h": "el sueño", "sueno": "el sueño", "estres": "el estrés", "ejercicio": "el ejercicio",
+    "actividad": "la actividad física", "tabaco": "el tabaco", "alimentacion": "la alimentación",
+    "alcohol": "el alcohol",
 }
 
 _ORDINAL = ("primera", "segunda", "tercera", "cuarta", "quinta", "sexta", "séptima", "octava")
@@ -139,15 +141,29 @@ def user_chunks(
         hab.append(f"alimentación {_NIVEL.get(h['alimentacion'], h['alimentacion'])}")
     if h.get("estres"):
         hab.append(f"estrés {_NIVEL.get(h['estres'], h['estres'])}")
-    palancas = ["ejercicio aeróbico", "dieta mediterránea"]
-    if h.get("tabaco"):
-        palancas += ["dejar el tabaco", "las tres combinadas"]
+    if h.get("alcohol"):
+        hab.append(f"alcohol {h['alcohol']}")
+    brechas = brechas_desde_habitos(h)
+    aplican, no_aplican, sin_dato = [], [], []
+    for key in PALANCAS:
+        sc = SCENARIOS[key]
+        g = brechas.get(sc.habito or "")
+        nombre = sc.nombre.lower()
+        if g is None:
+            (aplican if aplica(key, brechas) else sin_dato).append(
+                nombre + (" (hábito sin registrar: se asume brecha completa)" if aplica(key, brechas) else " (hábito sin registrar: no se asume)")
+            )
+        elif g > 0:
+            aplican.append(nombre + (f" (brecha {fmt_num(g, 2)})" if g < 1 else ""))
+        else:
+            no_aplican.append(nombre)
     texto = (
         ("Hábitos registrados: " + ", ".join(hab) + ".") if hab else "Hábitos: todavía no hay registrados."
     ) + (
-        f" Palancas que el motor puede simular para esta persona: {fmt_lista(palancas)}"
-        + ("" if h.get("tabaco") else " (dejar el tabaco no aplica porque no fuma)")
-        + ". Sueño, alcohol y estrés se registran pero todavía no son palancas del motor."
+        f" Palancas que aplican a esta persona: {fmt_lista(aplican) or 'ninguna'}."
+        + (f" No aplican porque ya tiene el hábito: {fmt_lista(no_aplican)}." if no_aplican else "")
+        + (f" Sin dato: {fmt_lista(sin_dato)}." if sin_dato else "")
+        + " Los hábitos registrados también ajustan su línea base (los malos la empeoran, los buenos la frenan)."
     )
     out.append(Chunk(
         id="habitos", titulo="Tus hábitos", texto=texto, grupo="usuario",

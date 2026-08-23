@@ -15,7 +15,15 @@ from __future__ import annotations
 
 from app.chat_rag.chunks import Chunk, fmt_lista, fmt_num
 from app.health_metrics.biomarkers import BIOMARKER_SPECS, PHENOAGE_BIOMARKERS
-from app.health_metrics.interventions import DYNAMICS, SCENARIOS
+from app.health_metrics.interventions import (
+    DESCUENTO_COMBINACION,
+    DYNAMICS,
+    EFECTO_RELATIVO_A,
+    HETEROGENEIDAD_RESPUESTA,
+    PALANCAS,
+    SCENARIOS,
+)
+from app.health_metrics.nhanes_reference import DISPERSION
 from app.health_metrics.phenoage import _COEF
 
 #: Human names for the biomarker vocabulary (same wording as the app's
@@ -101,29 +109,21 @@ QUE_ES_BIOMARCADOR: dict[str, str] = {
     ),
 }
 
-#: Effort per intervention as the app ranks them (1–10, lower is easier) and
-#: the description the app shows — `SimulationRepository.escenariosBackend`.
-#: The backend has no effort model of its own; kept here so the chat explains
-#: the ranking the user actually saw.
-ESFUERZO_APP: dict[str, int] = {
-    "ejercicio_aerobico": 3,
-    "dieta_mediterranea": 3,
-    "cesacion_tabaco": 4,
-    "combinada": 10,
-}
+#: Effort (1–10, lower is easier) and description per lever now live in the
+#: engine itself (`SCENARIOS[...].esfuerzo` / `.descripcion`), so the chat, the
+#: app and the ranking can never disagree. Kept as names for the old callers.
+ESFUERZO_APP: dict[str, int] = {key: sc.esfuerzo for key, sc in SCENARIOS.items() if key != "ninguna"}
 DESCRIPCION_APP: dict[str, str] = {
-    "ejercicio_aerobico": (
-        "150 minutos a la semana de algo que suba el pulso: caminar rápido, bici, nadar."
-    ),
-    "dieta_mediterranea": (
-        "Más verduras, legumbres, pescado y aceite de oliva; menos ultraprocesados. Un "
-        "patrón, no una dieta."
-    ),
-    "cesacion_tabaco": (
-        "Cero cigarrillos. Es la palanca que más mueve la inflamación y los leucocitos; solo "
-        "aplica si la persona fuma."
-    ),
-    "combinada": "Las tres a la vez: ejercicio + dieta mediterránea + dejar el tabaco.",
+    key: sc.descripcion for key, sc in SCENARIOS.items() if key != "ninguna"
+}
+#: Which stored habit each lever closes, in the user's words.
+NOMBRE_HABITO: dict[str, str] = {
+    "actividad": "la actividad física",
+    "alimentacion": "la alimentación",
+    "tabaco": "el tabaco",
+    "sueno": "el sueño",
+    "estres": "el estrés",
+    "alcohol": "el alcohol",
 }
 ALIAS_INTERVENCION: dict[str, tuple[str, ...]] = {
     "ejercicio_aerobico": (
@@ -135,6 +135,9 @@ ALIAS_INTERVENCION: dict[str, tuple[str, ...]] = {
         "ultraprocesados", "nutricion",
     ),
     "cesacion_tabaco": ("tabaco", "fumar", "cigarrillo", "cigarro", "vapear", "nicotina"),
+    "sueno_8h": ("sueno", "dormir", "horas de sueno", "descanso", "insomnio", "acostarme"),
+    "reducir_estres": ("estres", "ansiedad", "mindfulness", "meditar", "relajar", "tension"),
+    "reducir_alcohol": ("alcohol", "tomar", "beber", "trago", "cerveza", "vino", "copas"),
     "combinada": ("combinada", "todo junto", "las tres", "combinacion", "combo"),
 }
 
@@ -222,23 +225,37 @@ def _chunk_intervencion(key: str) -> Chunk:
     sc = SCENARIOS[key]
     efectos = fmt_lista(
         f"{NOMBRE_BIOMARCADOR[b]} {fmt_num(v, 2)} {BIOMARKER_SPECS[b].unidad}/año"
+        + (" (proporcional al valor actual)" if b in EFECTO_RELATIVO_A else "")
         for b, v in sc.efectos_anuales.items()
     )
-    esfuerzo = ESFUERZO_APP.get(key)
     partes = [
-        f"{sc.nombre}. {DESCRIPCION_APP.get(key, '')}".strip(),
+        f"{sc.nombre}. {sc.descripcion}".strip(),
         f"Efecto anual que sumo a la deriva natural de cada biomarcador: {efectos}."
         if efectos
         else "Sin efecto sobre los biomarcadores (línea base).",
     ]
-    if esfuerzo is not None:
+    if sc.habito:
         partes.append(
-            f"Esfuerzo según la app: {esfuerzo} de 10 (las palancas se ordenan por años ganados "
-            "dividido entre este esfuerzo)."
+            f"Cierra la brecha de {NOMBRE_HABITO[sc.habito]}: solo aplica si la persona tiene "
+            "ese hábito abierto (brecha 1 = del todo, 0,5 = a medias, 0 = ya lo tiene, y "
+            "entonces no se ofrece); el efecto se escala por esa brecha."
+        )
+    if sc.partes:
+        partes.append(
+            "Es la combinación de " + fmt_lista(SCENARIOS[p].nombre.lower() for p in sc.partes)
+            + "; solo aplica si al menos una de sus partes aplica."
+        )
+    if sc.esfuerzo:
+        partes.append(
+            f"Esfuerzo: {sc.esfuerzo} de 10 (las palancas se ordenan por años ganados dividido "
+            "entre este esfuerzo; en una combinación los esfuerzos se suman)."
         )
     partes.append(
         "Los tamaños de efecto son direccionales, sintetizados de la literatura de ejercicio, "
-        "dieta y cesación de tabaco; no están ajustados a un ensayo concreto."
+        "dieta, cesación de tabaco, sueño, estrés y alcohol; no están ajustados a un ensayo "
+        "concreto. Cada persona responde distinto: en la simulación el efecto se multiplica "
+        "por una respuesta individual (promedio 1, ±50 %), que es lo que da el rango de los años "
+        "ganados."
     )
     return Chunk(
         id=f"kb:intervencion:{key}",
@@ -272,13 +289,18 @@ _ESTATICOS: list[Chunk] = [
         titulo="Cómo funciona la simulación (tres capas)",
         texto=(
             "Capa 1, medidor: PhenoAge con los biomarcadores de hoy. Capa 2, motor de evolución: "
-            "cada biomarcador cambia un poco cada año (deriva natural) y cada palanca suma un efecto "
-            "anual a esa deriva. Capa 3, Monte Carlo: repito la capa 2 en 5.000 trayectorias "
-            "independientes por escenario, con ruido biológico nuevo cada año, durante 10 años, y "
-            "calculo PhenoAge al final de cada una; los percentiles 10, 50 (mediana) y 90 de esas "
-            "5.000 edades biológicas son la banda P10–P90. Todos los escenarios arrancan del mismo "
-            "punto, así que son comparables; se comparan por la mediana. Los 'años ganados' de una "
-            "palanca son la mediana sin hacer nada menos la mediana haciéndola."
+            "cada biomarcador cambia un poco cada año (deriva natural por edad), los hábitos "
+            "actuales de la persona ajustan esa deriva (fumar, sedentarismo, dormir poco, estrés, "
+            "alcohol la empeoran; tenerlos buenos la frena) y cada palanca suma un efecto anual "
+            "escalado por la brecha que le queda a la persona. Capa 3, Monte Carlo: repito la capa 2 "
+            "en 5.000 trayectorias por escenario, con ruido biológico nuevo cada año, durante 10 "
+            "años, y calculo PhenoAge en cada año de cada una; los percentiles 10, 50 (mediana) y 90 "
+            "son la banda P10–P90, año a año. Los futuros están PAREADOS: cada trayectoria usa los "
+            "mismos arranques y los mismos ruidos con y sin la palanca, así que los 'años ganados' "
+            "son la mediana de la diferencia 'misma vida con la palanca menos sin ella', con su "
+            "rango P10–P90 y el porcentaje de futuros en que la palanca termina mejor. Las "
+            "combinaciones de 2 o 3 palancas se simulan también (nunca más de 3), con un descuento "
+            "por solaparse."
         ),
         grupo="conocimiento",
         tags=(
@@ -291,13 +313,16 @@ _ESTATICOS: list[Chunk] = [
         id="kb:banda",
         titulo="Cómo leer el rango (banda P10–P90)",
         texto=(
-            "El rango no es un intervalo de confianza estadístico: es la dispersión real que produce "
-            "el ruido biológico año a año en las 5.000 trayectorias. El 80 % de los futuros "
-            "simulados cae dentro de la banda; la mediana es el futuro 'del medio'. El rango es "
-            "ancho a propósito: dice lo que todavía no sé de la persona. Se angosta cuando hay más "
-            "biomarcadores medidos (cada uno imputado ensancha la banda) y se ensancha con el "
-            "horizonte (más años, más incertidumbre). Confío más en el orden de las palancas que "
-            "en cualquiera de los números por separado."
+            "El rango no es un intervalo de confianza estadístico: es la dispersión real que producen "
+            "en las 5.000 trayectorias (a) el ruido biológico año a año, (b) lo que no sé de la "
+            "persona —cada biomarcador NO medido arranca muestreado de la dispersión de su grupo de "
+            "edad y sexo, por eso la banda de HOY ya tiene ancho si falta algo— y (c) la respuesta "
+            "individual a cada palanca (promedio 1, ±50 %, con ~2 % de no respondedores), que es lo "
+            "que da rango a los años ganados. El 80 % de los futuros simulados cae dentro de la "
+            "banda; la mediana es el futuro 'del medio'. El rango es ancho a propósito. Se angosta "
+            "cuando hay más biomarcadores medidos y se ensancha con el horizonte (más años, más "
+            "incertidumbre). Confío más en el orden de las palancas que en cualquiera de los "
+            "números por separado."
         ),
         grupo="conocimiento",
         tags=(
@@ -312,10 +337,13 @@ _ESTATICOS: list[Chunk] = [
         texto=(
             "Cuando falta uno de los 9 biomarcadores de PhenoAge, lo relleno con la mediana de "
             "referencia para el grupo de edad y sexo de la persona (valores plausibles en la forma "
-            "y tendencia de NHANES, no extraídos del microdato). Ese valor aparece marcado como "
-            "'inferido' o 'imputado': fue estimado, no medido en esta persona. Cada dato imputado "
-            "ensancha la banda de la proyección; medirlo no cambia la salud de nadie, cambia lo que "
-            "yo sé y por eso angosta el rango."
+            "y tendencia de NHANES, calibrados para que la persona mediana de cada edad marque ≈ su "
+            "edad cronológica; no extraídos del microdato). Ese valor aparece marcado como "
+            "'inferido' o 'imputado': fue estimado, no medido en esta persona. En la simulación un "
+            "dato imputado no se fija: se sortea en cada trayectoria dentro de la dispersión "
+            "poblacional de ese biomarcador, así que ensancha la banda desde el día de hoy; medirlo "
+            "no cambia la salud de nadie, cambia lo que yo sé y por eso angosta el rango. El motor "
+            "calcula cuánto angostaría la banda medir cada uno (valor de información)."
         ),
         grupo="conocimiento",
         tags=("imputado", "inferido", "faltante", "mediana", "nhanes", "estimado", "datos faltantes"),
@@ -326,13 +354,14 @@ _ESTATICOS: list[Chunk] = [
         titulo="Qué conviene medir primero",
         texto=(
             "Lo que más angosta el rango es medir los biomarcadores de PhenoAge que hoy están "
-            "imputados. Orientativamente, por peso en la fórmula y variabilidad típica: RDW y "
-            "glucosa pesan más, luego creatinina y VCM, después albúmina, hs-CRP, linfocitos y "
-            "leucocitos, y por último fosfatasa alcalina. La pantalla 'Qué medir' de la app ordena "
-            "los que faltan con una heurística propia (pesos fijos normalizados); el motor todavía "
-            "no calcula valor de información. Casi todos vienen en un hemograma completo más una "
-            "química sanguínea básica (glucosa, creatinina, albúmina, fosfatasa alcalina) y una "
-            "PCR ultrasensible."
+            "imputados. El motor lo calcula de verdad (valor de información): vuelve a correr la "
+            "línea base con ese biomarcador fijo y mide cuánto se angosta la banda P10–P90 a 10 "
+            "años; la pantalla 'Qué medir' de la app muestra ese ranking. Por peso en la fórmula y "
+            "dispersión típica, el RDW es por mucho el que más pesa (varios años de banda), luego "
+            "creatinina y VCM, después glucosa, albúmina, leucocitos, hs-CRP y linfocitos, y por "
+            "último fosfatasa alcalina. Casi todos vienen en un hemograma completo más una química "
+            "sanguínea básica (glucosa, creatinina, albúmina, fosfatasa alcalina) y una PCR "
+            "ultrasensible."
         ),
         grupo="conocimiento",
         tags=(
@@ -345,14 +374,16 @@ _ESTATICOS: list[Chunk] = [
         id="kb:esfuerzo_ratio",
         titulo="Cómo ordeno las palancas (años ganados por esfuerzo)",
         texto=(
-            "Cada escenario tiene años ganados (diferencia de medianas a 10 años frente a seguir "
-            "igual), su rango, y un esfuerzo de 1 a 10 que pone la app (ejercicio 3, dieta 3, "
-            "dejar el tabaco 4, las tres juntas 10). El ratio impacto/esfuerzo = años ganados ÷ "
-            "esfuerzo, y las palancas se ordenan por ese ratio, de mayor a menor. Por eso la "
-            "combinación de todo puede ganar más años y aun así no ser la primera: cuesta mucho más. "
-            "El 'porcentaje de futuros que mejoran' es la proporción de trayectorias pareadas en "
-            "las que la palanca termina con menor edad biológica; en el resto no hace daño, "
-            "simplemente algo más pasa primero."
+            "Cada escenario tiene años ganados (mediana de la diferencia pareada a 10 años frente "
+            "a seguir igual), su rango P10–P90, y un esfuerzo de 1 a 10 fijado en el motor "
+            "(ejercicio 3, dieta 3, dejar el tabaco 4, dormir 8 horas 2, reducir el estrés 2, "
+            "bajar el alcohol 2; en una combinación se suman). El ratio impacto/esfuerzo = años "
+            "ganados ÷ esfuerzo, y las palancas se ordenan por ese ratio, de mayor a menor. Por eso "
+            "una combinación puede ganar más años y aun así no ser la primera: cuesta más. Solo se "
+            "ofrecen las palancas que aplican a la persona según sus hábitos registrados (a quien ya "
+            "hace ejercicio no se le ofrece el ejercicio). El 'porcentaje de futuros que mejoran' es "
+            "la proporción de trayectorias pareadas en las que la palanca termina con menor edad "
+            "biológica; en el resto no hace daño, simplemente algo más pasa primero."
         ),
         grupo="conocimiento",
         tags=(
@@ -378,13 +409,15 @@ _ESTATICOS: list[Chunk] = [
         id="kb:aproximaciones",
         titulo="Qué parte del resultado se aproxima en el dispositivo",
         texto=(
-            "El servidor calcula PhenoAge hoy y los percentiles P10/mediana/P90 al año 10 por "
-            "escenario. La app completa el resto: la curva año a año se interpola entre hoy y el "
-            "año 10 (banda creciendo con la raíz del tiempo); las líneas finas del abanico son "
-            "ilustrativas; el 'por qué' (contribución de cada biomarcador) es una aproximación "
-            "tipo SHAP sobre el estado de hoy, no sobre las 5.000 trayectorias; el percentil "
-            "poblacional es aproximado; la adherencia es un factor local. Nada de eso cambia el "
-            "orden de las palancas ni las medianas."
+            "El servidor calcula PhenoAge hoy, la curva año a año (P10/mediana/P90) de cada "
+            "escenario, los años ganados pareados con su rango, el porcentaje de futuros que "
+            "mejoran, 40 trayectorias reales de muestra, el 'por qué' (contribución de cada "
+            "biomarcador medido frente a la mediana de referencia de su edad y sexo, y de cada "
+            "hábito registrado a 10 años — tipo SHAP sobre el estado basal, no sobre las 5.000 "
+            "trayectorias), el percentil poblacional y el valor de información de cada dato sin "
+            "medir. Lo único que sigue siendo una aproximación local de la app es la adherencia "
+            "(factores 0,25 · 0,5 · 0,8 · 1). Si la app corre contra un servidor viejo, interpola "
+            "la curva y aproxima el resto en el dispositivo, y lo dice."
         ),
         grupo="conocimiento",
         tags=("aproximacion", "interpolada", "ilustrativa", "local", "shap", "percentil", "curva"),
@@ -394,11 +427,12 @@ _ESTATICOS: list[Chunk] = [
         id="kb:poblacion",
         titulo="Frente a personas como tú (percentil)",
         texto=(
-            "El percentil compara la aceleración (edad biológica menos cronológica) con la "
-            "dispersión típica de la población de la misma edad y sexo, tomando NHANES como "
-            "referencia: percentil 50 = en el promedio; más bajo = más joven que el promedio; más "
-            "alto = mayor edad biológica que el promedio. Es una aproximación de la app, no un "
-            "ranking exacto."
+            "El percentil compara la aceleración (edad biológica menos cronológica) con la de la "
+            "persona de referencia de la misma edad y sexo (los 9 biomarcadores en su mediana, que "
+            "marca ≈ su edad) y con la dispersión poblacional de PhenoAge (~5 años, propagada desde "
+            "la dispersión de cada biomarcador): percentil 50 = como la referencia; más bajo = más "
+            "joven que el promedio; más alto = mayor edad biológica que el promedio. Lo calcula el "
+            "motor con una normal; es una aproximación, no un ranking exacto sobre microdato."
         ),
         grupo="conocimiento",
         tags=("percentil", "poblacion", "promedio", "personas como tu", "nhanes", "comparacion", "gente"),
@@ -408,11 +442,17 @@ _ESTATICOS: list[Chunk] = [
         id="kb:habitos",
         titulo="Qué hago con los hábitos registrados",
         texto=(
-            "Guardo sueño (horas), tabaco, actividad física, alimentación y estrés. De esos, el motor "
-            "de hoy solo simula como palancas el ejercicio aeróbico, la dieta mediterránea y dejar "
-            "el tabaco (esta última solo aparece si la persona fuma). Sueño, alcohol y estrés se "
-            "registran y se mencionan en el 'por qué' de forma aproximada, pero todavía no tienen "
-            "efecto anual propio en la simulación; es trabajo pendiente del motor."
+            "Guardo sueño (horas), tabaco, actividad física, alimentación, estrés y alcohol. Cada "
+            "uno entra al motor como una brecha de 0 a 1 (0 = ya tiene el hábito bueno, 1 = del "
+            "todo abierta: fuma, actividad baja, alimentación baja, ≤6 h de sueño, estrés alto, "
+            "alcohol casi diario; 0,5 el nivel intermedio). Dos usos: (1) la línea base es personal "
+            "— los hábitos malos la empeoran y los buenos la frenan (el 'por qué' dice cuántos años "
+            "a 10 años cuesta o ahorra cada hábito registrado); (2) solo se ofrecen las palancas "
+            "cuya brecha está abierta, con el efecto escalado por la brecha: ejercicio aeróbico "
+            "(actividad), dieta mediterránea (alimentación), dejar el tabaco, dormir 8 horas, "
+            "reducir el estrés y bajar el alcohol. Un hábito no registrado no ajusta la línea base; "
+            "las palancas universales se ofrecen igual y las de 'solo si lo haces' (tabaco, alcohol) "
+            "no se asumen."
         ),
         grupo="conocimiento",
         tags=(
@@ -427,10 +467,13 @@ _ESTATICOS: list[Chunk] = [
         texto=(
             "Capa 1 son los pesos publicados de PhenoAge (Levine 2018). Capa 2 son efectos de "
             "literatura epidemiológica, aproximados y direccionales; nada se presenta como verdad "
-            "exacta. Capa 3 es Monte Carlo con ruido biológico. Todavía no publico una calibración "
-            "formal (cobertura del rango en datos no vistos): lo que muestro en la pestaña "
-            "Respaldo es de dónde sale cada número, las fuentes (NHANES, Levine 2018) y la banda "
-            "P10–P90 como incertidumbre explícita. No pido confianza ciega."
+            "exacta; la tabla de medianas de referencia está calibrada para que la persona mediana "
+            "de cada edad y sexo marque ≈ su edad y envejezca ≈ 1 año PhenoAge por año, y las "
+            "prevalencias que sitúan la línea base de cada hábito son supuestos declarados. Capa 3 "
+            "es Monte Carlo con ruido biológico, incertidumbre de lo imputado y respuesta individual. "
+            "Todavía no publico una calibración formal (cobertura del rango en datos no vistos): lo "
+            "que muestro en Respaldo es de dónde sale cada número, las fuentes (NHANES, Levine 2018) "
+            "y la banda P10–P90 como incertidumbre explícita. No pido confianza ciega."
         ),
         grupo="conocimiento",
         tags=("calibracion", "respaldo", "confiable", "fuentes", "validado", "evidencia", "literatura"),

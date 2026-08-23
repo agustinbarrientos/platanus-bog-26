@@ -51,6 +51,29 @@ class Settings(BaseSettings):
     #: CHAT_MODEL env var (e.g. claude-sonnet-5) without a code change.
     chat_model: str = "claude-haiku-4-5"
 
+    # ---- voz (ElevenLabs) ----
+    #: elevenlabs.io → Developers → API Keys. Solo la necesitan
+    #: POST /me/voice/tts y /me/voice/stt; el resto de la API arranca y
+    #: funciona sin ella (igual que ANTHROPIC_API_KEY).
+    elevenlabs_api_key: str = ""
+    #: La voz de Moirai. elevenlabs.io → Voices → la voz → "Copy voice ID".
+    #: Sin esto /me/voice/tts responde 503 en vez de hablar con voz ajena.
+    elevenlabs_voice_id: str = ""
+    #: Flash v2.5: ~75 ms al primer byte, 32 idiomas y la mitad de créditos
+    #: por carácter que Multilingual v2 — el correcto para un chat. Cambiar a
+    #: eleven_v3_conversational (más expresivo, ~280 ms) vía env var.
+    #: Los eleven_turbo_* están deprecados; no usarlos.
+    tts_model: str = "eleven_flash_v2_5"
+    #: Scribe v2: 90+ idiomas. La entrada por micrófono.
+    stt_model: str = "scribe_v2"
+    #: Techo por request. Una respuesta del chat cabe de sobra (MAX_TOKENS es
+    #: 1024 ≈ 3.000 caracteres, pero las respuestas reales rondan 600); el
+    #: recorte existe para que un texto pegado a mano no se coma los créditos.
+    tts_max_chars: int = 1500
+    #: Audio del micrófono leído en memoria antes de reenviarlo, igual que
+    #: max_upload_mb: es un techo real de memoria por request.
+    max_audio_mb: int = 8
+
     # ---- lab-exam upload ----
     #: Read into memory before base64-encoding for the Anthropic request, so
     #: this is a real ceiling on this process's memory use per upload, not

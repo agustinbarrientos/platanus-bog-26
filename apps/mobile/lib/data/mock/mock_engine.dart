@@ -367,8 +367,12 @@ class MockEngine {
     'vcm': 'el VCM',
     'fosfatasa_alcalina': 'la fosfatasa alcalina',
     'sueno_h': 'el sueño',
+    'sueno': 'el sueño',
     'estres': 'el estrés',
     'ejercicio': 'el ejercicio',
+    'actividad': 'la actividad física',
+    'alimentacion': 'la alimentación',
+    'alcohol': 'el alcohol',
     'tabaco': 'el tabaco',
   };
 

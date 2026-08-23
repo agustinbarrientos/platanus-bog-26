@@ -14,7 +14,8 @@
 ## Base URL, auth, conventions
 
 - Local: `http://localhost:8000`. Deployed: the Render URL for this service.
-- Every endpoint except `/health`, `/auth/signup`, and `/auth/login` requires:
+- Every endpoint except `/health`, `/auth/signup`, `/auth/login` and `/engine/catalogo`
+  (static engine constants, nothing personal) requires:
   ```
   Authorization: Bearer <token>
   ```
@@ -197,7 +198,8 @@ Returns nulls/empty collections for anything never saved.
 {
   "demografia": {
     "ancestria_reportada": "mixta_latam",
-    "escolaridad_anios": 12
+    "escolaridad_anios": 12,
+    "perfil_conocimiento": "general"
   },
   "biomarcadores": [
     {"nombre": "hs_CRP", "valor": 2.1, "unidad": "mg/L", "fuente": "documento"},
@@ -212,7 +214,8 @@ Returns nulls/empty collections for anything never saved.
     "tabaco": false,
     "actividad": "baja",
     "alimentacion": "media",
-    "estres": "alto"
+    "estres": "alto",
+    "alcohol": "ocasional"
   },
   "historia_familiar": ["diabetes_t2", "alzheimer_materno"],
   "objetivos_usuario": ["energia", "prevencion"],
@@ -239,13 +242,29 @@ of this endpoint:
   new device/reinstall should `GET` this on login/session-restore and skip
   local onboarding if it's already `true`.
 
+**`demografia.perfil_conocimiento`** (`general` | `curioso` | `profesional`,
+closed vocabulary → `422` otherwise) is how much the person already knows
+about health/science, asked in onboarding ("¿Qué tanto sabes de salud?"). The
+engine ignores it; the chat (`/chat`, below) uses it to pick its register —
+plain everyday words for `general` (also the default when unset), concepts
+named for `curioso`, clinical/statistical vocabulary allowed for
+`profesional`. At every level the chat stays warm and simple and only goes
+deep-technical when the person explicitly asks.
+
+**`habitos`** is what the engine reads to build the person's own baseline
+and to decide which levers apply (see `/montecarlo`): `sueno_h` (hours),
+`tabaco` (bool), `actividad` and `alimentacion` in `baja|media|alta`, `estres`
+in `bajo|medio|alto`, `alcohol` in `nunca|ocasional|moderado|alto`. Values are
+free text at the API level (the app fixes the vocabulary); anything outside
+those sets is treated by the engine as "not recorded".
+
 **`biomarcadores[].nombre`** is a fixed vocabulary, not free text — an
 unlisted name is a `422`, as is the wrong `unidad` for a name or a `valor`
 outside its plausible range:
 
 | `nombre` | `unidad` | plausible range | used by PhenoAge? |
 |---|---|---|---|
-| `hs_CRP` | `mg/L` | 0.01–200 | yes |
+| `hs_CRP` | `mg/L` | 0.1–200 | yes |
 | `glucosa` | `mg/dL` | 30–600 | yes |
 | `albumina` | `g/dL` | 1.5–6.0 | yes |
 | `creatinina` | `mg/dL` | 0.2–15 | yes |
@@ -349,22 +368,42 @@ message if `date_of_birth` or `sex_at_birth` is missing from the profile.
 ### `POST /me/health-context/phenoage` → `200`
 No request body. Implements Levine et al. 2018's PhenoAge biological-age
 clock from the 9 biomarkers above (whatever's on file; the rest imputed from
-NHANES-style age/sex medians).
+the age/sex reference medians), plus the two things the app used to
+approximate on the device: the *por qué* and the population percentile.
 ```json
 {
   "edad_cronologica": 52,
   "edad_biologica": 45.9,
   "aceleracion": -6.1,
+  "aceleracion_referencia": 0.4,
+  "percentil_poblacional": 10.2,
   "campos_inferidos": ["creatinina", "fosfatasa_alcalina", "linfocitos_pct", "vcm", "rdw", "leucocitos"],
   "valores_usados": {
-    "hs_CRP": 2.1, "glucosa": 92.0, "albumina": 4.4, "creatinina": 0.8,
-    "fosfatasa_alcalina": 72.0, "linfocitos_pct": 30.0, "vcm": 91.0,
-    "rdw": 13.3, "leucocitos": 6.7
+    "hs_CRP": 2.1, "glucosa": 92.0, "albumina": 4.4, "creatinina": 0.945,
+    "fosfatasa_alcalina": 82.0, "linfocitos_pct": 29.2, "vcm": 91.2,
+    "rdw": 13.7, "leucocitos": 7.1
+  },
+  "contribuciones": {
+    "hs_CRP": -0.2, "glucosa": -0.7, "albumina": -1.1, "creatinina": 0.0,
+    "fosfatasa_alcalina": 0.0, "linfocitos_pct": 0.0, "vcm": 0.0, "rdw": 0.0, "leucocitos": 0.0
   }
 }
 ```
 - `aceleracion` = `edad_biologica - edad_cronologica`. Negative = biologically
   younger than the calendar; positive = older.
+- `aceleracion_referencia` = the acceleration of the *reference person* of
+  that age and sex (all 9 biomarkers at their median). The reference table is
+  calibrated so this is ≈ 0 (±2 years; women ~1 year below men, as in
+  NHANES). It is the zero of the percentile.
+- `percentil_poblacional` (1–99): `aceleracion` against the reference person
+  and the population spread of PhenoAge (~5 years, propagated from the
+  per-biomarker dispersion). 50 = like the reference; lower = younger than
+  average; higher = older. A user with nothing measured lands at 50.
+- `contribuciones`: years each **measured** biomarker adds (+, ages) or
+  removes (−, rejuvenates) versus the reference median — the spec §7 "SHAP
+  sobre el basal". Imputed ones are exactly `0.0` (they *are* the median).
+  They sum to `aceleracion - aceleracion_referencia`. Show the sign, never
+  "normal/abnormal".
 - `campos_inferidos` names which of `valores_usados` were imputed rather than
   measured — always show this distinction in any UI that surfaces the result.
 
@@ -372,93 +411,323 @@ NHANES-style age/sex medians).
 ```json
 // request — every field optional
 {
-  "escenarios": ["ninguna", "ejercicio_aerobico"],  // omit for all 7
+  "escenarios": ["ejercicio_aerobico", "ejercicio_aerobico+sueno_8h"],  // omit → what applies to this person (+ combos)
   "n_trayectorias": 5000,   // 100–20000, default 5000
-  "anios": 10               // 1–30, default 10
+  "anios": 10,              // 1–30, default 10
+  "semilla": 20260822,      // optional; omitted → fixed default (reproducible)
+  "combinaciones": true     // only when `escenarios` is omitted: also pairs and triples
 }
 ```
-Runs `n_trayectorias` independent 1-year-step simulations per scenario over
-`anios` years, evolving each biomarker with a natural-aging drift + the
-scenario's effect + biological noise, then computes PhenoAge at the horizon
-for every trajectory. Omitting `escenarios` runs **all 7**, returned in the
-order listed below (the declaration order of `SCENARIOS` in
-`app/health_metrics/interventions.py`) — a caller that omits the field gets
-`ninguna` first, so the baseline is always `escenarios[0]`. `422` if an
-`escenarios` key isn't one of:
+Runs `n_trayectorias` paired 1-year-step simulations per scenario over
+`anios` years. Each trajectory evolves the 9 biomarkers with a natural-aging
+drift, **the person's own habits** (stored `habitos`), the scenario's effect
+(scaled by how much of that habit the person still has to gain), an
+individual response multiplier and biological noise, evaluating PhenoAge at
+**every year**. Biomarkers that are not measured start **sampled** from the
+population spread of their age/sex group (so an imputed value widens the band
+from day 0, and measuring it narrows it). All scenarios share the same sampled
+starts, the same noise and the same response draws (same `semilla`), so every
+trajectory is the *same life* with and without the lever: "años ganados" is
+the distribution of that paired difference.
 
-| key | label |
-|---|---|
-| `ninguna` | Sin intervención (línea base) |
-| `ejercicio_aerobico` | Ejercicio aeróbico regular |
-| `dieta_mediterranea` | Dieta mediterránea |
-| `cesacion_tabaco` | Cesación de tabaco |
-| `sueno_8h` | Dormir 8 horas |
-| `reducir_estres` | Reducir el estrés |
-| `combinada` | Ejercicio + dieta mediterránea + cesación de tabaco |
+**Scenario keys.** One lever, several levers joined with `+` (max 3, spec
+§12), the legacy composite `combinada` (= `ejercicio_aerobico+dieta_mediterranea+cesacion_tabaco`)
+or `ninguna`. Unknown/repeated levers or more than 3 → `422`. `ninguna` is
+always returned first (the baseline), whether or not you asked for it.
 
-`sueno_8h` and `reducir_estres` are the two levers of `MOIRAI_ENGINE_SPEC.md`
-§5 that the engine was missing; their effect sizes are deliberately smaller
-than exercise or diet because the trial evidence behind them is weaker. They
-were added without renaming or removing any existing key, so a caller that
-passes an explicit `escenarios` list keeps behaving exactly as before.
+| lever key | label | closes habit | effort (1–10) |
+|---|---|---|---|
+| `ejercicio_aerobico` | Ejercicio aeróbico regular | `actividad` (baja→1, media→0.5, alta→0) | 3 |
+| `dieta_mediterranea` | Dieta mediterránea | `alimentacion` (baja→1, media→0.5, alta→0) | 3 |
+| `cesacion_tabaco` | Cesación de tabaco | `tabaco` (true→1, false→0) | 4 |
+| `sueno_8h` | Dormir 8 horas | `sueno` (from `sueno_h`: ≤6 h→1, ≥7.5 h→0, linear) | 2 |
+| `reducir_estres` | Reducir el estrés | `estres` (alto→1, medio→0.5, bajo→0) | 2 |
+| `reducir_alcohol` | Bajar el alcohol | `alcohol` (alto→1, moderado→0.5, ocasional/nunca→0) | 2 |
+
+A lever **applies** to a person when its habit gap is > 0; with gap 0 (they
+already have the habit) its effect is 0, `aplica=false` and it collapses onto
+the baseline. A habit that is **not recorded** does not adjust the baseline;
+for the effect, `ejercicio_aerobico`, `dieta_mediterranea`, `sueno_8h` and
+`reducir_estres` are assumed with full gap (offered as before), while
+`cesacion_tabaco` and `reducir_alcohol` are not assumed (gap 0). Omitting
+`escenarios` returns `ninguna` + every applicable lever + (with
+`combinaciones`) all their pairs and triples — the spec §6 sweep. The effort
+of a combination is the sum of its parts.
 
 ```json
 {
   "edad_cronologica": 52,
   "horizonte_anios": 10,
   "trayectorias_por_escenario": 5000,
-  "campos_inferidos": ["creatinina", "fosfatasa_alcalina", "linfocitos_pct", "vcm", "rdw", "leucocitos"],
+  "semilla": 20260822,
+  "campos_inferidos": ["linfocitos_pct", "vcm", "fosfatasa_alcalina"],
+  "ancho_banda_hoy": 4.7,
+  "habitos_usados": {"sueno_h": 6, "tabaco": false, "actividad": "baja", "alimentacion": "media", "estres": "alto"},
+  "brechas": {"actividad": 1.0, "alimentacion": 0.5, "tabaco": 0.0, "sueno": 1.0, "estres": 1.0, "alcohol": null},
+  "palancas": [
+    {"id": "ejercicio_aerobico", "nombre": "Ejercicio aeróbico regular", "descripcion": "150 minutos a la semana…",
+     "esfuerzo": 3, "habito": "actividad", "brecha": 1.0, "brecha_efectiva": 1.0, "aplica": true,
+     "efectos_anuales": {"hs_CRP": -0.08, "glucosa": -0.9, "leucocitos": -0.03}},
+    {"id": "cesacion_tabaco", "nombre": "Cesación de tabaco", "descripcion": "Cero cigarrillos…",
+     "esfuerzo": 4, "habito": "tabaco", "brecha": 0.0, "brecha_efectiva": 0.0, "aplica": false,
+     "efectos_anuales": {"leucocitos": -0.11, "hs_CRP": -0.1, "vcm": -0.15}}
+  ],
   "escenarios": [
     {
-      "escenario": "ninguna",
-      "nombre": "Sin intervención (línea base)",
-      "edad_biologica_p10": 51.76,
-      "edad_biologica_mediana": 57.65,
-      "edad_biologica_p90": 63.44,
-      "curva": {
-        "anios":    [0,     1,     "...", 10],
-        "p10":      [52.30, 51.62, "...", 51.76],
-        "mediana":  [52.30, 53.44, "...", 57.65],
-        "p90":      [52.30, 55.28, "...", 63.44]
-      }
+      "escenario": "ninguna", "nombre": "Sin intervención (línea base)", "intervenciones": [],
+      "descripcion": "", "esfuerzo": 0, "aplica": true,
+      "edad_biologica_p10": 51.76, "edad_biologica_mediana": 57.65, "edad_biologica_p90": 63.44,
+      "curva": {"anios": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                "p10": [45.4, 46.1, 47.0, 47.6, 48.4, 49.1, 49.7, 50.3, 50.8, 51.3, 51.76],
+                "mediana": [47.6, 48.6, 49.6, 50.6, 51.6, 52.6, 53.6, 54.6, 55.6, 56.6, 57.65],
+                "p90": [49.9, 51.2, 52.4, 53.7, 54.9, 56.1, 57.3, 58.5, 60.1, 61.8, 63.44]},
+      "anios_ganados": 0, "anios_ganados_p10": 0, "anios_ganados_p90": 0,
+      "pct_futuros_que_mejoran": 0, "ratio_impacto_esfuerzo": 0
+    },
+    {
+      "escenario": "ejercicio_aerobico+sueno_8h", "nombre": "Ejercicio aeróbico regular + dormir 8 horas",
+      "intervenciones": ["ejercicio_aerobico", "sueno_8h"], "descripcion": "150 minutos… · Acostarte…",
+      "esfuerzo": 5, "aplica": true,
+      "edad_biologica_p10": 50.1, "edad_biologica_mediana": 55.8, "edad_biologica_p90": 61.6,
+      "curva": {"anios": [0, 1, 10], "p10": [45.4, 45.9, 50.1], "mediana": [47.6, 48.4, 55.8], "p90": [49.9, 51.0, 61.6]},
+      "anios_ganados": 1.85, "anios_ganados_p10": 0.89, "anios_ganados_p90": 3.04,
+      "pct_futuros_que_mejoran": 99.9, "ratio_impacto_esfuerzo": 0.37
     }
+  ],
+  "muestra_trayectorias": [[47.6, 48.3, 49.1, 50.5, 51.0, 52.4, 53.1, 54.6, 55.0, 56.7, 57.2], "…(40 rows of 11)"],
+  "valor_de_informacion": [
+    {"nombre": "vcm", "reduccion_banda_anios": 0.74, "fraccion": 0.8},
+    {"nombre": "linfocitos_pct", "reduccion_banda_anios": 0.16, "fraccion": 0.17},
+    {"nombre": "fosfatasa_alcalina", "reduccion_banda_anios": 0.03, "fraccion": 0.03}
+  ],
+  "contribuciones_habitos": [
+    {"habito": "actividad", "palanca": "ejercicio_aerobico", "brecha": 1.0, "contribucion": 1.1, "direccion": "empeora"},
+    {"habito": "tabaco", "palanca": "cesacion_tabaco", "brecha": 0.0, "contribucion": -1.5, "direccion": "mejora"}
   ]
 }
 ```
-`edad_biologica_p10`/`mediana`/`p90` are percentiles of simulated biological
-age across all trajectories for that scenario **at the horizon** — not a
-confidence interval, the actual spread the noise model produces. Compare
-scenarios by their medians.
-
-`curva` is the same three percentiles **year by year**, `anios[i]` counted from
-today (`0` = today). Its last point is exactly the flat `edad_biologica_*`
-above it, and its first point is the same for every scenario (no drift or noise
-has been applied yet, so the band has zero width at year 0 and the median
-equals what `/phenoage` returns). This is the fan a UI renders — the app no
-longer needs to interpolate one locally.
-
-Two properties the engine guarantees, both covered in `tests/test_montecarlo.py`:
-
-- **The p10–p90 band widens every year.** More distance, less certainty. A band
-  that narrowed with time would be the model claiming it knows the far future
-  better than the near one.
-- **Imputed biomarkers widen the band.** A biomarker that came from the
-  reference-median table instead of a lab gets its annual noise multiplied by
-  `SIGMA_IMPUTADO_FACTOR` (2.0), so a profile with 3 of 9 values inferred
-  projects a visibly wider fan than a fully measured one. Measuring one more
-  biomarker narrows it. Note this widens the band **symmetrically** — it does
-  not shift the median, so a user who uploaded no labs gets a less certain
-  answer, not a worse prognosis.
+- `escenarios[0]` is always `ninguna`. Per scenario: `curva` is the P10 /
+  mediana / P90 of the simulated biological age **per year** (year 0 = today;
+  with imputed biomarkers it already has width — `ancho_banda_hoy`);
+  `edad_biologica_*` are the same numbers at the horizon (the previous shape
+  of this endpoint, kept). `anios_ganados` (+ `_p10`/`_p90`) is the **paired**
+  difference baseline − scenario, trajectory by trajectory, and
+  `pct_futuros_que_mejoran` the share of trajectories where the lever ends
+  younger (typically 95–100 %: the ~2 % non-responders of the response
+  multiplier, plus noise). `ratio_impacto_esfuerzo` = `anios_ganados /
+  esfuerzo`; the app ranks by it. `aplica=false` scenarios are returned (if
+  asked) but gain nothing.
+- `palancas`: the full lever catalog evaluated for this person (`brecha`,
+  `aplica`, effects) — use it as the app's catalog/descriptions instead of a
+  local table.
+- `muestra_trayectorias`: up to 40 real baseline trajectories (year by year)
+  to draw while simulating / behind the fan.
+- `valor_de_informacion`: for each imputed biomarker, how many years the
+  baseline P10–P90 band at the horizon would shrink if it were measured
+  (same seed, that biomarker fixed at its median), largest first; `fraccion`
+  sums to 1. Empty when all 9 are measured. Feeds "¿Qué te conviene medir?".
+- `contribuciones_habitos`: deterministic, at the horizon — years this
+  recorded habit costs (`empeora`, gap > 0) or saves (`mejora`, gap 0) versus
+  having it the other way. Pairs with `/phenoage`'s `contribuciones` (today,
+  biomarkers) for the "por qué".
+- Backwards compatible: every field the previous version returned is still
+  there with the same meaning; a client that only reads
+  `escenarios[].edad_biologica_*` keeps working (it just gets habit-aware,
+  paired numbers).
 
 > Intervention effect sizes are **approximate and derived from epidemiological
 > literature** — each one is annotated in `app/health_metrics/interventions.py`
 > with the trial or meta-analysis its order of magnitude comes from, and
 > `tests/test_evolution.py` checks that the 10-year cumulative effect stays
-> inside the published range. Approximate and citable, not exact, and not
-> fitted to any cohort of ours. The per-year aging drift is anchored to the
-> age gradient of this engine's own reference-median table, and those medians
-> (`nhanes_reference.py`) are still hand-set NHANES-shaped values, not NHANES
-> microdata. Estimate, not a clinical claim.
+> inside the published range. hs-CRP effects are proportional to the current
+> value (calibrated at 2.5 mg/L); the rest are absolute. The per-year aging
+> drift is anchored to the age gradient of the engine's reference-median
+> table, which is hand-set NHANES-shaped data calibrated so the median person
+> of each age/sex reads ≈ their own age (`nhanes_reference.py`), not NHANES
+> microdata. The mixture decomposition that places each habit's baseline uses
+> declared prevalence assumptions (it moves where the baseline sits, not the
+> years gained). Combining levers discounts 8 % per extra lever on the same
+> biomarker; individual response is N(1, 0.5) truncated at 0. Estimate, not a
+> clinical claim.
+
+### `GET /engine/catalogo` → `200`
+**No auth.** The engine's static constants — what every number is made of —
+so the app's "Respaldo" screen and any client can render them without a copy
+that drifts:
+```json
+{
+  "version": "0.3.0",
+  "biomarcadores": [
+    {"nombre": "hs_CRP", "unidad": "mg/L", "valor_min": 0.1, "valor_max": 200.0,
+     "descripcion": "Proteína C reactiva de alta sensibilidad", "phenoage": true,
+     "deriva_anual": 0.012, "ruido_anual_sd": 0.6, "dispersion": {"tipo": "lognormal", "sigma": 1.0}},
+    {"nombre": "imc", "unidad": "kg/m2", "valor_min": 10.0, "valor_max": 80.0,
+     "descripcion": "Índice de masa corporal", "phenoage": false,
+     "deriva_anual": null, "ruido_anual_sd": null, "dispersion": null}
+  ],
+  "palancas": [
+    {"id": "ejercicio_aerobico", "nombre": "Ejercicio aeróbico regular", "descripcion": "150 minutos…",
+     "esfuerzo": 3, "habito": "actividad", "brecha_promedio": 0.5, "brecha_si_desconocido": 1.0,
+     "efectos_anuales": {"hs_CRP": -0.08, "glucosa": -0.9, "leucocitos": -0.03}}
+  ],
+  "habitos": ["actividad", "alimentacion", "tabaco", "sueno", "estres", "alcohol"],
+  "combinacion": {"descuento_por_palanca_adicional": 0.08, "max_intervenciones": 3, "heterogeneidad_respuesta_sd": 0.5},
+  "defaults": {"n_trayectorias": 5000, "anios": 10, "semilla": 20260822, "muestra_trayectorias": 40}
+}
+```
+
+---
+
+## Health report (`/me/health-context/reporte`, `/reporte.pdf`)
+
+The downloadable, clinical-tone, **orientative** health report of
+`docs/MOIRAI_REPORTE_SPEC.md` — the deliverable the person takes *to* their
+doctor. Same contract as `/phenoage` + `/montecarlo`: a pure function of what
+`/me` + `/me/health-context` already hold (name, age, sex, stored
+`biomarcadores` with their `fuente`, `habitos`, `demografia.ancestria_reportada`).
+Every number is recomputed from the real engine on each call (PhenoAge +
+paired Monte Carlo with the engine's default seed, so it matches what the app
+showed); nothing is stored, nothing is generated by a language model — the
+prose is fixed templates filled with engine numbers. `422` (string `detail`)
+if `date_of_birth`/`sex_at_birth` are missing from the profile.
+
+Guard-rails baked into the templates (and pinned by `tests/test_report.py`):
+no disease is ever named as a diagnosis, nothing is prescribed (no drugs,
+supplements or doses), no outcome is promised, no "88 % accuracy" claims; a
+disclaimer sits on the cover, in every page footer and in the triage
+section. Out-of-range values are worded exactly as "fuera del rango de
+referencia", never as a condition.
+
+### `POST /me/health-context/reporte` → `200`
+Optional body (all defaults = what the app used for the simulation):
+```json
+{"n_trayectorias": 5000, "anios": 10, "semilla": null, "resumen": false}
+```
+Response (`ReporteOut`; abridged — every section is what the PDF prints):
+```json
+{
+  "meta": {"id": "rep_7f3a9c21", "generado_en": "2026-08-22T20:11:03+00:00", "version_motor": "0.3.0",
+           "semilla": 20260822, "trayectorias_por_escenario": 5000, "horizonte_anios": 10,
+           "disclaimer": "Documento orientativo, no diagnóstico. …", "privacidad": "Datos procesados de forma privada; …",
+           "fuentes": ["Levine ME, et al. … Aging 2018 (PhenoAge).", "NHANES (CDC): …", "…"]},
+  "persona": {"nombre": "Ana Rueda", "edad": 34, "sexo": "F", "ancestria": "mixta_latam"},
+  "resumen": "Tu edad biológica estimada es 28,9 años (tienes 34); lo que más la mueve a 10 años es ejercicio aeróbico regular: +1,6 años, entre +0,6 y +2,7.",
+  "foto_hoy": {
+    "edad_cronologica": 34, "edad_biologica": 28.9, "rango_hoy": {"p10": 26.6, "mediana": 28.9, "p90": 31.3},
+    "aceleracion": -5.1, "percentil_poblacional": 20.6, "n_medidos": 6, "n_inferidos": 3,
+    "biomarcadores": [
+      {"nombre": "glucosa", "etiqueta": "Glucosa en ayunas", "valor": 92.0, "unidad": "mg/dL",
+       "estado": "en_rango", "lado": null, "rango_referencia": "70–99 mg/dL (en ayunas)",
+       "fuente_rango": "ADA, Standards of Care (…)", "fuente": "documento", "contribucion_anios": -0.3, "nota": null},
+      {"nombre": "vcm", "etiqueta": "Volumen corpuscular medio (VCM)", "valor": 90.7, "unidad": "fL",
+       "estado": "inferido", "lado": null, "rango_referencia": "80–100 fL", "fuente_rango": null,
+       "fuente": "inferido", "contribucion_anios": 0.0, "nota": null}
+    ],
+    "nota_poblacional": "Los rangos de referencia y la población de comparación vienen mayormente de poblaciones europeas y estadounidenses (NHANES); …",
+    "lectura": "Tu edad biológica estimada (28,9) está 5,1 años por debajo de tu edad (34) …"
+  },
+  "ejes": [
+    {"id": "inflamacion", "nombre": "Inflamación", "nivel": "optimo", "nivel_texto": "en rango",
+     "biomarcadores": [{"nombre": "hs_CRP", "etiqueta": "Proteína C reactiva (hs-CRP)", "valor": 2.1, "medido": true, "estado": "en_rango"},
+                       {"nombre": "leucocitos", "etiqueta": "Leucocitos", "valor": 6.2, "medido": true, "estado": "en_rango"}],
+     "aporte_anios": -0.6, "explicacion": "Señales de inflamación de bajo grado en la sangre: … Lo que mediste está dentro de los rangos de referencia. …"}
+  ],
+  "futuros": {
+    "horizonte_anios": 10,
+    "curva_base": {"anios": [0, 1, 10], "p10": [26.6, 27.2, 33.7], "mediana": [28.9, 30.0, 40.0], "p90": [31.3, 32.7, 46.1]},
+    "sigues_igual": {"titulo": "Si sigues igual", "escenario": "ninguna", "nombre": "Línea base con tus hábitos de hoy",
+                     "al_horizonte": {"p10": 33.7, "mediana": 40.0, "p90": 46.1}, "anios_ganados": null, "rango_ganados": null, "texto": "En 10 años …"},
+    "si_mejoras": {"titulo": "Si mejoras", "escenario": "ejercicio_aerobico", "nombre": "Ejercicio aeróbico regular",
+                   "al_horizonte": {"p10": 32.0, "mediana": 38.3, "p90": 44.7}, "anios_ganados": 1.6, "rango_ganados": [0.6, 2.7], "texto": "Con ejercicio aeróbico regular …"},
+    "si_te_descuidas": {"titulo": "Si te descuidas", "escenario": null, "nombre": "Línea base con todos los hábitos en el extremo adverso",
+                        "al_horizonte": {"p10": 36.6, "mediana": 42.8, "p90": 48.9}, "anios_ganados": -2.8, "rango_ganados": null, "texto": "Si los seis hábitos … No es una predicción …"},
+    "ranking": [
+      {"escenario": "ejercicio_aerobico+dieta_mediterranea+sueno_8h", "nombre": "Ejercicio aeróbico regular + dieta mediterránea + dormir 8 horas",
+       "intervenciones": ["ejercicio_aerobico", "dieta_mediterranea", "sueno_8h"], "anios_ganados": 2.3, "anios_ganados_p10": 1.3, "anios_ganados_p90": 3.5,
+       "pct_futuros_que_mejoran": 100, "esfuerzo": 8, "ratio_impacto_esfuerzo": 0.29, "fuentes": ["Fedewa MV, … Br J Sports Med 2017;51:670–676 (…)", "Estruch R, et al. Ann Intern Med 2006;145:1–11 (…)", "Irwin MR, … Biol Psychiatry 2016;80:40–52 (…)"]}
+    ],
+    "nota_incertidumbre": "Estimación, no certeza: el rango refleja lo que no sé de ti …"
+  },
+  "recomendaciones": [
+    {"id": "ejercicio_aerobico", "nombre": "Ejercicio aeróbico regular",
+     "que_hacer": "150 minutos a la semana de algo que te suba el pulso: caminar rápido, bici, nadar.",
+     "por_que": "En tu simulación, ejercicio aeróbico regular baja la inflamación (proteína C reactiva), baja la glucosa en ayunas y baja el recuento de leucocitos; acumulado a 10 años, eso se traduce en +1,6 años …",
+     "anios_ganados": 1.6, "rango_ganados": [0.6, 2.7], "pct_futuros_que_mejoran": 98, "esfuerzo": 3,
+     "evidencia": [{"hallazgo": "El entrenamiento físico sostenido se asocia con menor proteína C reactiva …", "fuente": "Fedewa MV, Hathaway ED, Ward-Ritacco CL. Br J Sports Med 2017;51:670–676 (…)"}],
+     "habito": "actividad física", "brecha": 1.0}
+  ],
+  "consulta": {
+    "disclaimer": "Esto es orientación para que un profesional lo evalúe, no una conclusión. Lleva este reporte a tu consulta: resume lo que Moirai observó.",
+    "sugerencias": [{"eje": "ninguno", "nombre": "Control de rutina", "nivel": "optimo", "profesional": "medicina general o familiar",
+                     "texto": "Con lo medido no veo ningún eje que pida una consulta especial. Un control preventivo de rutina …"}],
+    "lleva_esto": "Lleva este reporte a tu consulta. Resume lo que Moirai observó: …"
+  },
+  "afinar": {"ancho_banda_hoy": 4.7,
+             "faltantes": [{"nombre": "vcm", "etiqueta": "Volumen corpuscular medio (VCM)", "reduccion_banda_anios": 0.8, "fraccion": 0.664}],
+             "nota": "Hoy 3 de los 9 biomarcadores del reloj están imputados; …"}
+}
+```
+- **§1 `foto_hoy`** — the 9 PhenoAge biomarkers always (measured or
+  `inferido`), plus `colesterol_total` / `presion_sistolica` / `imc` only if
+  measured. `estado` ∈ `en_rango | borde | fuera | inferido | sin_rango`
+  from `app/health_metrics/reference_ranges.py` (adult clinical reference
+  ranges with their source: AHA/CDC for hs-CRP, ADA for fasting glucose, NCEP
+  for cholesterol, ACC/AHA for BP, WHO for BMI, usual lab ranges for the
+  rest; `borde` = the explicit borderline band — glucose 100–125, cholesterol
+  200–239, BP 120–129, BMI 25–29.9 — or, when none, within 10 % of the range
+  width past the limit). `fuente` is what the app stored (`documento` /
+  `reportado` / `calculado`), `inferido` for imputed. `contribucion_anios` is
+  `/phenoage.contribuciones` for that biomarker. `rango_hoy` is year 0 of the
+  baseline fan (the band from imputation); `p10 == p90` when all 9 are measured.
+- **§2 `ejes`** — the five systemic axes
+  (`inflamacion`: hs_CRP, leucocitos · `metabolico`: glucosa, imc ·
+  `renal_hepatico`: creatinina, albumina, fosfatasa_alcalina ·
+  `hematologico`: vcm, rdw, linfocitos_pct · `cardio_metabolico`:
+  presion_sistolica, colesterol_total, imc), each with
+  `nivel` ∈ `optimo | a_vigilar | atencion | sin_datos` by a declared rule
+  (`app/health_metrics/ejes.py`): `atencion` if any **measured** component is
+  `fuera`, `a_vigilar` if any is `borde`, `optimo` if all measured are in
+  range, `sin_datos` if nothing in the axis is measured (imputed values never
+  count). `aporte_anios` = sum of the axis' PhenoAge contributions.
+- **§3 `futuros`** — `curva_base` is `/montecarlo`'s baseline `curva`;
+  `sigues_igual` = baseline; `si_mejoras` = the applicable scenario with the
+  best `ratio_impacto_esfuerzo` (same paired `anios_ganados` + P10/P90 as
+  `/montecarlo`); `si_te_descuidas` = the baseline re-run **with the same
+  seed and all six habit gaps fully open** (`brechas = 1`) — the only
+  scenario `/montecarlo` doesn't run by default; when the person is already
+  at every adverse habit it says so and `anios_ganados` is `null`. `ranking`
+  = every applicable scenario (singles + 2–3 combos) sorted by years gained,
+  with one literature `fuente` per lever. `si_mejoras` is `null` when no
+  lever applies.
+- **§4 `recomendaciones`** — the 2–3 **single** levers with the best
+  impact/effort for this person (only those with an open gap), each with
+  `que_hacer` (the lever's description), `por_que` (which biomarkers it
+  moves + the paired years gained), `evidencia[]` (`hallazgo` + `fuente`,
+  from `app/health_metrics/evidencia.py` — same provenance as the
+  coefficient notes in `interventions.py`), `habito` and the `brecha` the
+  effect was scaled by. Empty when nothing applies (then the text says
+  "seguir como vas").
+- **§5 `consulta`** — triage by **rule**, axis → type of professional, only
+  for axes at `a_vigilar`/`atencion` (`atencion` first), each worded as "para
+  que lo evalúe"; when nothing is flagged, a single `eje: "ninguno"` routine
+  check-up suggestion. Always carries its own `disclaimer`.
+- **§6 `afinar`** — the imputed PhenoAge biomarkers ordered by
+  `/montecarlo.valor_de_informacion` (how much each would narrow the 10-year
+  band), plus a note naming the non-PhenoAge ones not measured.
+
+### `POST /me/health-context/reporte.pdf` → `200`, `application/pdf`
+Same optional body. Returns the rendered PDF bytes (never written to disk)
+with `Content-Disposition: attachment; filename="moirai-reporte-<Nombre>-<fecha>.pdf"`,
+`Cache-Control: no-store` and `X-Moirai-Reporte-Id: rep_…`. With
+`"resumen": true` it returns the **one-page summary** for the consultation
+(`moirai-resumen-…pdf`): cover line, today's numbers, what's out of range,
+the top levers, the triage, what to measure next. Layout: A4, the app's
+palette (blue / green = in range / amber = attention, no red) and fonts
+(Fredoka for display numbers, Nunito for body — TTFs bundled in
+`app/report/fonts/`, OFL; Helvetica fallback if missing), the PhenoAge fan
+(P10–P90 band + median + best-scenario line) drawn natively, disclaimer +
+privacy line + sources + "Página X de Y" in every footer. Full report is
+6–7 pages; typical size 45–70 KB.
 
 ---
 
@@ -479,9 +748,26 @@ conversation back each turn.
   "message": "¿Por qué el ejercicio es mi primera palanca?",
   "history": [],              // optional; pass back what the previous response returned here
   "enfoque": "escenario:0",   // optional; where in the app the chat was opened from
+  "perfil_conocimiento": "general",  // optional; general | curioso | profesional — how technical the reply may be
   "resultado": { "...": "SimulacionResultado.toChatJson() — spec §8 shape, see below" }
 }
 ```
+- **Voice.** Moirai answers warm, plain and human: the person should feel
+  heard (a short acknowledgement when the question carries worry or doubt),
+  get an answer to exactly what they asked, in everyday words and short
+  sentences, with any unavoidable term translated in the same sentence. It
+  only goes deep-technical (coefficients, units, formulas, sources) when the
+  person explicitly asks for it ("explícame la parte técnica", "cómo se
+  calcula exactamente"), and simplifies further if asked to. Still first
+  person singular, gains not losses, no alarm words, es-CO numbers,
+  "estimación, no diagnóstico" the first time a projection comes up.
+- `perfil_conocimiento` (optional): picks the register for this turn —
+  `general` = zero untranslated jargon (no "percentil"/"mediana"/"biomarcador"
+  on their own), `curioso` = concepts may be named with the translation
+  alongside, `profesional` = clinical/statistical vocabulary with precision,
+  no explaining the basics. Overrides `demografia.perfil_conocimiento` stored
+  in the health context (what onboarding saves); omit to use the stored
+  value; neither set → `general`. Same closed vocabulary → `422` otherwise.
 - `message`: 1–4000 chars. `history`: max 40 entries, each
   `{"role": "user"|"assistant", "content": "..."}` (`extra="forbid"`).
 - `enfoque` (optional, ≤ 80 chars): biases retrieval and pins the matching
@@ -548,6 +834,99 @@ the ~8–10k a full dump of data + result + knowledge would cost.
 If the profile's `date_of_birth`/`sex_at_birth` aren't set yet, this endpoint
 does **not** 422 like `/phenoage` does — it still answers, just without a
 PhenoAge figure to reference (it'll say so).
+
+---
+
+## Voice (`/me/voice`)
+
+Moirai speaking and listening, through ElevenLabs. This API is a **proxy on
+purpose**: the ElevenLabs key would be extractable from the APK if the app
+called ElevenLabs directly (a `--dart-define` is plain text in the bundle), so
+the key stays in the server environment and the app authenticates against us
+with the token it already has. Nothing is stored — audio in, audio out, same
+request.
+
+Configured with two env vars on Render; without them these endpoints `503`
+and every other endpoint keeps working:
+
+| Env var | Qué es |
+| --- | --- |
+| `ELEVENLABS_API_KEY` | elevenlabs.io → Developers → API Keys. |
+| `ELEVENLABS_VOICE_ID` | elevenlabs.io → Voices → la voz → "Copy voice ID". |
+| `TTS_MODEL` | Opcional. Default `eleven_flash_v2_5` (~75 ms, 32 idiomas, media unidad de crédito por carácter). `eleven_v3_conversational` suena más expresivo a ~280 ms. Los `eleven_turbo_*` están deprecados. |
+| `STT_MODEL` | Opcional. Default `scribe_v2`. |
+| `TTS_MAX_CHARS` | Opcional. Default `1500`. |
+| `MAX_AUDIO_MB` | Opcional. Default `8`. |
+
+### `GET /me/voice/estado` → `200`
+Whether this deployment can speak. Ask once at startup and hide the speaker
+and microphone if `disponible` is `false`, instead of discovering a `503`
+mid-demo.
+```json
+{
+  "disponible": true,
+  "modelo_tts": "eleven_flash_v2_5",
+  "modelo_stt": "scribe_v2",
+  "max_caracteres": 1500
+}
+```
+
+### `POST /me/voice/tts` → `200`, `audio/mpeg`
+A chat reply, spoken. Send the `reply` from `/me/health-context/chat`
+**verbatim** — the server normalizes it for speech before synthesizing
+(`app/voice_text.py`), so the app never has to know how its own formatting
+sounds:
+
+| En pantalla | Se lee |
+| --- | --- |
+| `8.240` | `8240` (el punto de miles engañaría al lector) |
+| `6,4` | `6,4` — la coma decimal de es-CO ya se lee bien, se conserva |
+| `+2,4` / `-1,2` | `más 2,4` / `menos 1,2` |
+| `1,1–3,7`, `P10–P90` | `1,1 a 3,7`, `percentil 10 a percentil 90` |
+| `79%` | `79 por ciento` |
+| `#1` | `número 1` |
+| `hs-CRP`, `IMC`, `mg/dL` | nombres completos en español |
+| `**negrita**`, viñetas, enlaces | se eliminan |
+
+Nombres propios que fallan a nivel de fonema (Moirai, PhenoAge, *Turritopsis
+dohrnii*, NHANES) no se arreglan aquí: van en un pronunciation dictionary de
+ElevenLabs.
+
+```json
+// request
+{
+  "texto": "Ejercicio es tu palanca #1: +2,4 años a 10 años (1,1–3,7).",
+  "voice_id": "..."   // opcional; solo para probar voces desde /docs. La app no lo manda.
+}
+```
+Respuesta: MP3 en streaming (`mp3_44100_128`), `Cache-Control: no-store` y
+`X-Caracteres` con lo que efectivamente se sintetizó. El audio empieza a
+llegar antes de estar completo: reprodúcelo en streaming en vez de esperar el
+archivo entero.
+
+Texto por encima de `TTS_MAX_CHARS` se recorta **en la última frase que
+quepa**, nunca a mitad de palabra.
+
+### `POST /me/voice/stt` → `200`
+`multipart/form-data` con un campo `audio` (la grabación del micrófono: m4a,
+wav, webm, mp3, ogg, flac…). Devuelve el texto listo para mandarlo como
+`message` a `/me/health-context/chat`.
+```json
+{ "texto": "¿Por qué el ejercicio es mi primera palanca?", "idioma": "spa", "confianza_idioma": 0.98 }
+```
+
+### Errores (ambos)
+- `402` — la cuenta de ElevenLabs se quedó sin créditos. **Distínguelo**: es
+  el caso realista en plan gratis y la señal para caer al TTS local del
+  dispositivo sin mostrar un error.
+- `413` — el audio supera `MAX_AUDIO_MB` (solo `/stt`).
+- `415` — el `content-type` del archivo no es audio (solo `/stt`).
+- `422` — no queda nada que leer tras normalizar, o el audio está vacío.
+- `429` — rate-limited en ElevenLabs; reintenta en un momento.
+- `502` — ElevenLabs rechazó la petición (key inválida o sin el permiso
+  correspondiente) o respondió con un error.
+- `503` — la voz no está configurada en este despliegue, o no se pudo
+  contactar a ElevenLabs.
 
 ---
 

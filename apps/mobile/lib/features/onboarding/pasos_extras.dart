@@ -495,6 +495,7 @@ class PasoResumen extends ConsumerWidget {
       ]),
       _ResumenCard(icon: Icons.auto_awesome_rounded, titulo: 'Lo que quieres ganar', filas: [
         ('Objetivos', ob.objetivos.isEmpty ? null : _etiquetas(Catalogos.objetivos, ob.objetivos)),
+        ('Cómo te explico', Catalogos.perfilConocimientoDetalle[ob.perfilConocimiento]),
       ]),
       _ResumenCard(icon: Icons.family_restroom_rounded, titulo: 'Familia', filas: [
         ('Historial', familia.isEmpty ? null : familia),

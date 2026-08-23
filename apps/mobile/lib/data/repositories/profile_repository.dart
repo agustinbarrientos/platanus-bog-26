@@ -79,8 +79,20 @@ class ProfileRepository {
     if (d.ejercicio != null) hab['actividad'] = actividadDesde(d.ejercicio!);
     if (d.alimentacion != null) hab['alimentacion'] = d.alimentacion;
     if (d.estres != null) hab['estres'] = _estres(d.estres!);
+    // El motor usa el alcohol (palanca "bajar el alcohol" + línea base): va en
+    // el nivel de la spec (nunca|ocasional|moderado|alto), derivado de la
+    // frecuencia que responde la persona.
+    final alcohol = d.alcohol ?? (d.alcoholFrecuencia == null ? null : Catalogos.alcoholNivel(d.alcoholFrecuencia));
+    if (alcohol != null) hab['alcohol'] = alcohol;
+    final demo = <String, dynamic>{
+      if (d.ancestria != null) 'ancestria_reportada': d.ancestria,
+      // El chat lee esto para decidir qué tan técnico puede ser (sencillo
+      // por defecto); vocabulario cerrado en el backend, así que solo mando
+      // valores del catálogo.
+      if (Catalogos.perfilConocimiento.containsKey(d.perfilConocimiento)) 'perfil_conocimiento': d.perfilConocimiento,
+    };
     final patch = <String, dynamic>{
-      if (d.ancestria != null) 'demografia': {'ancestria_reportada': d.ancestria},
+      if (demo.isNotEmpty) 'demografia': demo,
       if (hab.isNotEmpty) 'habitos': hab,
       'historia_familiar': d.historialFamiliar
           .where((e) => e.condicion != 'ninguna')

@@ -20,7 +20,17 @@ class ChatRepository {
   static const maxHistory = 40;
   static const maxMessage = 4000;
 
-  Future<ChatRespuesta> enviar(String message, List<ChatMessage> history, {SimulacionResultado? resultado, String? enfoque}) async {
+  /// `perfilConocimiento` (`general | curioso | profesional`, del onboarding)
+  /// le dice al agente qué tanto vocabulario puede dar por sabido; va en
+  /// cada turno para que el registro sea el correcto aunque el sync del
+  /// onboarding no haya llegado al backend.
+  Future<ChatRespuesta> enviar(
+    String message,
+    List<ChatMessage> history, {
+    SimulacionResultado? resultado,
+    String? enfoque,
+    String? perfilConocimiento,
+  }) async {
     final msg = message.trim();
     final hist = history.where((m) => !m.pendiente).toList();
     final recortado = hist.length > maxHistory ? hist.sublist(hist.length - maxHistory) : hist;
@@ -40,6 +50,7 @@ class ChatRepository {
         'history': recortado.map((m) => m.toJson()).toList(),
         if (resultado != null) 'resultado': resultado.toChatJson(),
         if (enfoque != null && enfoque.trim().isNotEmpty) 'enfoque': enfoque.trim(),
+        'perfil_conocimiento': ?perfilConocimiento,
       },
       timeout: const Duration(seconds: 120),
     ) as Map)

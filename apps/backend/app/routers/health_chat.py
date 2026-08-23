@@ -11,9 +11,11 @@ How a turn works (see `app/chat_rag/`):
    biased by the previous user turn and by `enfoque` — where in the app the
    chat was opened from) under a ~1.600-token budget; an always-on core card
    carries the headline numbers regardless.
-4. Call the model with those fragments in the system prompt and one tool,
-   `buscar_mis_datos`, that runs the same retriever again when the first pass
-   missed something (bounded to two rounds).
+4. Call the model with those fragments in the system prompt — written in
+   the register the person asked for in onboarding (`perfil_conocimiento`:
+   plain words by default, technical only on explicit request) — and one
+   tool, `buscar_mis_datos`, that runs the same retriever again when the
+   first pass missed something (bounded to two rounds).
 5. Return the reply, the plain-text history to send back next turn, and the
    ids/titles of the fragments used (`fuentes`), which the app shows as
    "esto es lo que leí" under the answer.
@@ -44,6 +46,7 @@ from app.health_metrics import phenoage
 from app.health_metrics.biomarkers import PHENOAGE_BIOMARKERS
 from app.health_metrics.phenoage import PhenoAgeResult
 from app.models import HealthContext, Profile
+from app.routers.health_context import PerfilConocimiento
 from app.routers.profile import biological_inputs
 
 log = logging.getLogger("app")
@@ -153,6 +156,7 @@ class ChatIn(BaseModel):
                 "message": "¿Por qué el ejercicio es mi primera palanca?",
                 "history": [],
                 "enfoque": "escenario:0",
+                "perfil_conocimiento": "general",
                 "resultado": {
                     "id": "sim_abc",
                     "edad_cronologica": 34,
@@ -182,6 +186,12 @@ class ChatIn(BaseModel):
     #: detail), `porque`, `incertidumbre`, `biomarcador:<nombre>`, `medir`,
     #: `poblacion`.
     enfoque: str | None = Field(default=None, max_length=80)
+    #: How technical the reply may be (`general` | `curioso` | `profesional`).
+    #: Overrides `demografia.perfil_conocimiento` stored in the health
+    #: context for this turn — the app sends what it has locally so the
+    #: register is right even when the onboarding sync hasn't landed. Omit to
+    #: use the stored value; neither set → `general` (plain words).
+    perfil_conocimiento: PerfilConocimiento | None = None
 
 
 class Fuente(BaseModel):
@@ -233,7 +243,10 @@ async def chat(
     mostrados = {c.id for c in fragmentos}
     usados: list[Chunk] = list(fragmentos)
 
-    system_prompt = build_system(perfil.get("nombre") or user.email, core, fragmentos)
+    registro = body.perfil_conocimiento or context["demografia"].get("perfil_conocimiento")
+    system_prompt = build_system(
+        perfil.get("nombre") or user.email, core, fragmentos, perfil=registro
+    )
     messages: list[dict] = [{"role": m.role, "content": m.content} for m in body.history]
     messages.append({"role": "user", "content": body.message})
 

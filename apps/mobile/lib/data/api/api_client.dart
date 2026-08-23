@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
@@ -66,6 +67,19 @@ class ApiClient {
     return _decode(res);
   }
 
+  /// POST que devuelve bytes (p. ej. el PDF de `/me/health-context/reporte.pdf`).
+  /// Un error del backend llega como JSON `{"detail": …}` y se traduce igual
+  /// que en los demás métodos.
+  Future<Uint8List> postBytes(String path, {Object? body, String accept = 'application/octet-stream', Duration? timeout}) async {
+    final headers = _headers()..['Accept'] = accept;
+    final res = await _http
+        .post(_uri(path), headers: headers, body: body == null ? null : jsonEncode(body))
+        .timeout(timeout ?? _timeout);
+    if (res.statusCode >= 200 && res.statusCode < 300) return res.bodyBytes;
+    _decode(res); // lanza ApiException con el mensaje del backend
+    throw ApiException(res.statusCode, 'No pude generar el archivo. Intenta de nuevo.');
+  }
+
   Future<dynamic> patch(String path, {Object? body}) async {
     final res = await _http.patch(_uri(path), headers: _headers(), body: body == null ? null : jsonEncode(body)).timeout(_timeout);
     return _decode(res);
@@ -81,12 +95,14 @@ class ApiClient {
     _decode(res);
   }
 
-  /// Multipart con un solo archivo. El backend espera el campo `file` y un
-  /// `Content-Type` real (pdf/png/jpeg/webp) — lo inferimos de la extensión.
-  Future<dynamic> upload(String path, {required String filePath, String field = 'file'}) async {
+  /// Multipart con un solo archivo. El backend espera un `Content-Type` real
+  /// (pdf/png/jpeg/webp) — lo inferimos de la extensión salvo que se pase
+  /// [contentType] (el audio del micrófono lo hace: `/me/voice/stt` rechaza
+  /// con 415 lo que no declare ser audio).
+  Future<dynamic> upload(String path, {required String filePath, String field = 'file', MediaType? contentType}) async {
     final req = http.MultipartRequest('POST', _uri(path));
     req.headers.addAll(_headers(json: false));
-    req.files.add(await http.MultipartFile.fromPath(field, filePath, contentType: _mediaType(filePath)));
+    req.files.add(await http.MultipartFile.fromPath(field, filePath, contentType: contentType ?? _mediaType(filePath)));
     final streamed = await _http.send(req).timeout(const Duration(seconds: 120));
     final res = await http.Response.fromStream(streamed);
     return _decode(res);

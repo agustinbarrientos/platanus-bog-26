@@ -89,7 +89,7 @@ class BiomarcadorDef {
     BiomarcadorDef(id: 'albumina', nombre: 'Albúmina', unidad: 'g/dL', min: 1.5, max: 6.0, nucleo: true, phenoAge: true, ayuda: 'Proteína del hígado. Suele venir en el perfil hepático.'),
     BiomarcadorDef(id: 'creatinina', nombre: 'Creatinina', unidad: 'mg/dL', min: 0.2, max: 15, nucleo: true, phenoAge: true, ayuda: 'Marca cómo filtran tus riñones.'),
     BiomarcadorDef(id: 'glucosa', nombre: 'Glucosa en ayunas', unidad: 'mg/dL', min: 30, max: 600, nucleo: true, phenoAge: true, ayuda: 'Azúcar en sangre tras 8 h sin comer.'),
-    BiomarcadorDef(id: 'hs_CRP', nombre: 'Proteína C reactiva (hs-CRP)', unidad: 'mg/L', min: 0.01, max: 200, nucleo: true, phenoAge: true, ayuda: 'Inflamación de bajo grado. La ultrasensible (hs).'),
+    BiomarcadorDef(id: 'hs_CRP', nombre: 'Proteína C reactiva (hs-CRP)', unidad: 'mg/L', min: 0.1, max: 200, nucleo: true, phenoAge: true, ayuda: 'Inflamación de bajo grado. La ultrasensible (hs).'),
     BiomarcadorDef(id: 'rdw', nombre: 'RDW', unidad: '%', min: 10, max: 25, nucleo: true, phenoAge: true, ayuda: 'Amplitud de los glóbulos rojos. Viene en el hemograma.'),
     BiomarcadorDef(id: 'leucocitos', nombre: 'Leucocitos', unidad: '10^3/uL', min: 1, max: 50, nucleo: true, phenoAge: true, ayuda: 'Glóbulos blancos totales. Viene en el hemograma.'),
     BiomarcadorDef(id: 'linfocitos_pct', nombre: 'Linfocitos', unidad: '%', min: 1, max: 90, nucleo: false, phenoAge: true, ayuda: 'Porcentaje de linfocitos en el hemograma.'),
@@ -112,17 +112,18 @@ class BiomarcadorDef {
     _ => u,
   };
 
-  /// Medianas de referencia (aprox. adultos) para imputar/mostrar como
-  /// "inferido" sin conexión. El backend usa las suyas por edad/sexo.
+  /// Medianas de referencia (aprox. adultos, tramo 45–59 promedio F/M de la
+  /// tabla calibrada del backend) para imputar/mostrar como "inferido" sin
+  /// conexión. El backend usa las suyas por edad/sexo.
   static const medianas = <String, double>{
-    'albumina': 4.3,
-    'creatinina': 0.85,
-    'glucosa': 95,
-    'hs_CRP': 1.8,
-    'rdw': 13.0,
-    'leucocitos': 6.5,
-    'linfocitos_pct': 30,
-    'vcm': 90,
-    'fosfatasa_alcalina': 70,
+    'albumina': 4.16,
+    'creatinina': 1.03,
+    'glucosa': 99.5,
+    'hs_CRP': 2.3,
+    'rdw': 13.6,
+    'leucocitos': 7.1,
+    'linfocitos_pct': 28.7,
+    'vcm': 91.5,
+    'fosfatasa_alcalina': 83.5,
   };
 }

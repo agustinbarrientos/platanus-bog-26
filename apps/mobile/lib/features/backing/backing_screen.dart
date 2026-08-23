@@ -1,32 +1,50 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../app/providers.dart';
+import '../../app/router.dart';
 import '../../app/theme/tokens.dart';
 import '../../core/env.dart';
+import '../../core/format.dart';
 import '../../data/models/biomarcador.dart';
 import '../../data/models/simulacion.dart';
 import '../../data/repositories/simulation_repository.dart';
 import '../../widgets/fan_chart.dart';
 import '../../widgets/mo.dart';
 
-/// Pestaña "Respaldo": de dónde sale cada número. No hay un número de
+/// "Respaldo" (se abre desde el encabezado de "Tu futuro"): de dónde sale cada número. No hay un número de
 /// calibración inventado; hay tres capas explicadas, los coeficientes que
 /// uso, lo que NO hago y las respuestas a las preguntas incómodas.
-class BackingScreen extends StatelessWidget {
+class BackingScreen extends ConsumerWidget {
   const BackingScreen({super.key});
 
   static final Uri _nhanes = Uri.parse('https://www.cdc.gov/nchs/nhanes/');
   static final Uri _levine = Uri.parse('https://doi.org/10.18632/aging.101414');
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     var i = 0;
     Widget s(Widget w) => w.stagger(i++, base: const Duration(milliseconds: 70));
+    final catalogo = ref.watch(engineCatalogProvider).asData?.value;
+    final version = '${catalogo?['version'] ?? '0.3'}';
 
     return MoScreen(
+      appBar: AppBar(
+        leading: BackButton(
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go(Routes.future);
+            }
+          },
+        ),
+      ),
       children: [
         const MoScreenHeader(
           title: 'De dónde sale esto',
@@ -49,7 +67,7 @@ class BackingScreen extends StatelessWidget {
           numero: 2,
           icon: Icons.timeline_rounded,
           titulo: 'Motor de evolución',
-          texto: 'Cada biomarcador cambia un poco cada año; cada hábito modifica esa deriva. Coeficientes aproximados, derivados de literatura epidemiológica — citables, nunca inventados.',
+          texto: 'Cada biomarcador cambia un poco cada año; tus hábitos de hoy ajustan esa deriva y cada palanca cierra la brecha de uno de ellos. Coeficientes aproximados, derivados de literatura epidemiológica — citables, nunca inventados.',
           tone: MoTone.good,
         )),
         s(const _Connector()),
@@ -57,7 +75,7 @@ class BackingScreen extends StatelessWidget {
           numero: 3,
           icon: Icons.blur_on_rounded,
           titulo: 'Monte Carlo',
-          texto: 'Corro la capa 2 5.000 veces con ruido biológico. El abanico P10–P90 es lo que no sé de ti, dicho en voz alta.',
+          texto: 'Corro la capa 2 5.000 veces con ruido biológico, sorteando lo que no medí y la respuesta de cada futuro, pareando cada vida con y sin la palanca. El abanico P10–P90 es lo que no sé de ti, dicho en voz alta.',
           tone: MoTone.watch,
           extra: Padding(
             padding: const EdgeInsets.only(top: Sp.x4),
@@ -88,7 +106,7 @@ class BackingScreen extends StatelessWidget {
         // ── Palancas ─────────────────────────────────────────────────────
         s(const MoSectionTitle('Las palancas y su efecto anual', subtitle: 'Cuánto mueve cada hábito la deriva de cada biomarcador, por año.')),
         const SizedBox(height: Sp.x5),
-        s(const _PalancasCard()),
+        s(_PalancasCard(catalogo: catalogo)),
         const SizedBox(height: Sp.stackSection),
 
         // ── Lo que NO hace ───────────────────────────────────────────────
@@ -132,7 +150,7 @@ class BackingScreen extends StatelessWidget {
         s(Text(
           Env.useMockEngine
               ? 'Motor mock en el dispositivo'
-              : 'Motor v0.2 en el servidor · ${Uri.tryParse(Env.apiBaseUrl)?.host ?? Env.apiBaseUrl}',
+              : 'Motor v$version en el servidor · ${Uri.tryParse(Env.apiBaseUrl)?.host ?? Env.apiBaseUrl}${catalogo == null ? ' · coeficientes: copia local' : ''}',
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.labelSmall!.copyWith(letterSpacing: .4),
         )),
@@ -279,7 +297,7 @@ class _DatosCard extends StatelessWidget {
               const SizedBox(width: Sp.x3),
               Expanded(
                 child: Text(
-                  'Los que faltan los imputo con medianas NHANES por edad y sexo y ensancho la banda.',
+                  'Los que faltan los imputo con la mediana de referencia de tu edad y sexo y, al simular, los sorteo dentro de su dispersión poblacional: por eso la banda arranca ancha ya hoy y medirlos la angosta.',
                   style: t.bodySmall,
                 ),
               ),
@@ -293,40 +311,97 @@ class _DatosCard extends StatelessWidget {
 
 // ── Palancas ─────────────────────────────────────────────────────────────
 
-/// Copia de `apps/backend/app/health_metrics/interventions.py` (DYNAMICS):
-/// deriva natural por año y ruido anual (SD) de cada biomarcador PhenoAge,
-/// en las unidades del backend.
-///
-/// Es una copia a propósito, no una llamada de red: esta pantalla es la que le
-/// explica al jurado de dónde sale cada número y tiene que abrir aunque no
-/// haya backend (o con `USE_MOCK_ENGINE`). Para que la copia no se
-/// desincronice en silencio —ya pasó— `apps/backend/tests/test_app_coeficientes.py`
-/// lee ESTE archivo y falla si algún valor deja de coincidir con el motor.
+/// Copia de respaldo de `apps/backend/app/health_metrics/interventions.py`
+/// (DYNAMICS): deriva natural por año y ruido anual (SD) de cada biomarcador
+/// PhenoAge, en las unidades del backend. Solo se usa si `GET /engine/catalogo`
+/// no responde (sin red / backend viejo); con el catálogo del motor se muestra
+/// exactamente lo que corre el servidor.
 const _dinamicaBackend = <String, ({double deriva, double ruido})>{
-  'hs_CRP': (deriva: 0.03, ruido: 0.6),
-  'glucosa': (deriva: 0.29, ruido: 4.0),
-  'albumina': (deriva: -0.01, ruido: 0.08),
-  'creatinina': (deriva: 0.005, ruido: 0.04),
-  'fosfatasa_alcalina': (deriva: 0.3, ruido: 4.0),
-  'linfocitos_pct': (deriva: -0.15, ruido: 1.5),
-  'vcm': (deriva: 0.1, ruido: 1.0),
-  'rdw': (deriva: 0.03, ruido: 0.3),
-  'leucocitos': (deriva: 0.01, ruido: 0.4),
+  'hs_CRP': (deriva: 0.012, ruido: 0.6),
+  'glucosa': (deriva: 0.20, ruido: 4.0),
+  'albumina': (deriva: -0.005, ruido: 0.08),
+  'creatinina': (deriva: 0.002, ruido: 0.04),
+  'fosfatasa_alcalina': (deriva: 0.15, ruido: 4.0),
+  'linfocitos_pct': (deriva: -0.05, ruido: 1.5),
+  'vcm': (deriva: 0.035, ruido: 1.0),
+  'rdw': (deriva: 0.012, ruido: 0.3),
+  'leucocitos': (deriva: 0.005, ruido: 0.4),
 };
 
-/// Copia de `interventions.py` (SCENARIOS → efectos_anuales): cuánto suma cada
-/// escenario a la deriva natural, por biomarcador y por año.
+/// Copia de respaldo de `interventions.py` (SCENARIOS → efectos_anuales):
+/// cuánto suma cada palanca a la deriva natural, por biomarcador y por año,
+/// con la brecha completa.
 const _efectosBackend = <String, Map<String, double>>{
-  'sueno_8h': {'hs_CRP': -0.05, 'glucosa': -0.2},
   'ejercicio_aerobico': {'hs_CRP': -0.08, 'glucosa': -0.9, 'leucocitos': -0.03},
   'dieta_mediterranea': {'hs_CRP': -0.06, 'glucosa': -0.6, 'albumina': 0.01},
-  'reducir_estres': {'hs_CRP': -0.04},
   'cesacion_tabaco': {'leucocitos': -0.11, 'hs_CRP': -0.10, 'vcm': -0.15},
-  'combinada': {'hs_CRP': -0.20, 'glucosa': -1.4, 'leucocitos': -0.12, 'albumina': 0.01, 'vcm': -0.10},
+  'sueno_8h': {'hs_CRP': -0.05, 'glucosa': -0.2},
+  'reducir_estres': {'hs_CRP': -0.04},
+  'reducir_alcohol': {'vcm': -0.20, 'hs_CRP': -0.03},
+};
+
+const _nombreHabito = <String, String>{
+  'actividad': 'actividad física',
+  'alimentacion': 'alimentación',
+  'tabaco': 'tabaco',
+  'sueno': 'sueño',
+  'estres': 'estrés',
+  'alcohol': 'alcohol',
+};
+
+typedef _Palanca = ({String id, String etiqueta, String descripcion, int esfuerzo, String habito, Map<String, double> efectos});
+
+/// Palancas a mostrar: del catálogo del motor si llegó, si no la copia local.
+List<_Palanca> _palancasDe(Map<String, dynamic>? catalogo) {
+  final lista = (catalogo?['palancas'] as List?)?.cast<Map>();
+  if (lista != null && lista.isNotEmpty) {
+    return [
+      for (final p in lista)
+        (
+          id: '${p['id']}',
+          etiqueta: SimulationRepository.etiquetasPalanca['${p['id']}'] ?? '${p['nombre'] ?? p['id']}',
+          descripcion: '${p['descripcion'] ?? ''}',
+          esfuerzo: (p['esfuerzo'] as num?)?.toInt() ?? 0,
+          habito: '${p['habito'] ?? ''}',
+          efectos: ((p['efectos_anuales'] as Map?) ?? const {}).map((k, v) => MapEntry('$k', (v as num).toDouble())),
+        ),
+    ];
+  }
+  return [
+    for (final e in SimulationRepository.escenariosBackend.entries)
+      (id: e.key, etiqueta: e.value.etiqueta, descripcion: e.value.descripcion, esfuerzo: e.value.esfuerzo, habito: e.value.habito, efectos: _efectosBackend[e.key] ?? const {}),
+  ];
+}
+
+Map<String, ({double deriva, double ruido})> _dinamicaDe(Map<String, dynamic>? catalogo) {
+  final lista = (catalogo?['biomarcadores'] as List?)?.cast<Map>();
+  if (lista != null && lista.isNotEmpty) {
+    final out = <String, ({double deriva, double ruido})>{};
+    for (final b in lista) {
+      if (b['phenoage'] != true || b['deriva_anual'] == null) continue;
+      out['${b['nombre']}'] = (deriva: (b['deriva_anual'] as num).toDouble(), ruido: (b['ruido_anual_sd'] as num?)?.toDouble() ?? 0);
+    }
+    if (out.isNotEmpty) return out;
+  }
+  return _dinamicaBackend;
+}
+
+IconData _iconoEscenario(String id) => switch (id) {
+  'ejercicio_aerobico' => Icons.directions_walk_rounded,
+  'dieta_mediterranea' => Icons.restaurant_rounded,
+  'cesacion_tabaco' => Icons.smoke_free_rounded,
+  'sueno_8h' => Icons.bedtime_rounded,
+  'reducir_estres' => Icons.self_improvement_rounded,
+  'reducir_alcohol' => Icons.no_drinks_rounded,
+  'combinada' => Icons.auto_awesome_rounded,
+  _ => Icons.spa_rounded,
 };
 
 class _PalancasCard extends StatelessWidget {
-  const _PalancasCard();
+  const _PalancasCard({this.catalogo});
+
+  /// `GET /engine/catalogo` (null = sin red o backend viejo → copia local).
+  final Map<String, dynamic>? catalogo;
 
   /// Coeficientes con hasta tres decimales (−0,002 no puede mostrarse como
   /// "0"); signo explícito y menos tipográfico, igual que `Fmt.delta`.
@@ -362,6 +437,11 @@ class _PalancasCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context).textTheme;
+    final dinamica = _dinamicaDe(catalogo);
+    final palancas = _palancasDe(catalogo);
+    final combinacion = (catalogo?['combinacion'] as Map?)?.cast<String, dynamic>();
+    final descuento = (combinacion?['descuento_por_palanca_adicional'] as num?)?.toDouble() ?? 0.08;
+    final heterogeneidad = (combinacion?['heterogeneidad_respuesta_sd'] as num?)?.toDouble() ?? 0.5;
     return MoCard(
       padding: const EdgeInsets.fromLTRB(Sp.gutter, Sp.x3, Sp.gutter, Sp.x5),
       child: Column(
@@ -374,35 +454,39 @@ class _PalancasCard extends StatelessWidget {
               childrenPadding: const EdgeInsets.only(left: 54, bottom: Sp.x3),
               leading: const MoIconTile(Icons.timeline_rounded, tone: MoTone.sunken, size: 40),
               title: Text('Sin intervención (línea base)', style: t.titleMedium),
-              subtitle: Text('Deriva natural por año ± ruido anual, ${_dinamicaBackend.length} biomarcadores', style: t.bodySmall),
+              subtitle: Text('Deriva natural por año ± ruido anual, ${dinamica.length} biomarcadores', style: t.bodySmall),
               iconColor: MoiraiColors.ink2,
               collapsedIconColor: MoiraiColors.ink3,
               children: [
-                for (final e in _dinamicaBackend.entries) _fila(t, e.key, e.value.deriva, extra: ' (± ${_tres.format(e.value.ruido)})'),
+                for (final e in dinamica.entries) _fila(t, e.key, e.value.deriva, extra: ' (± ${_tres.format(e.value.ruido)})'),
               ],
             ),
           ),
-          for (final e in SimulationRepository.escenariosBackend.entries)
+          for (final p in palancas)
             _SinBordes(
               child: ExpansionTile(
                 tilePadding: EdgeInsets.zero,
                 childrenPadding: const EdgeInsets.only(left: 54, bottom: Sp.x3),
-                // `iconoIntervencion` (mo.dart) ya conoce los ids del motor,
-                // incluidos sueno_8h y reducir_estres. El switch propio que
-                // vivía acá no los tenía y los mandaba a spa_rounded.
-                leading: MoIconTile(iconoIntervencion(e.key), size: 40),
-                title: Text(e.value.etiqueta, style: t.titleMedium),
+                leading: MoIconTile(_iconoEscenario(p.id), size: 40),
+                title: Text(p.etiqueta, style: t.titleMedium),
                 subtitle: Text(
-                  '${_efectosBackend[e.key]?.length ?? 0} biomarcadores · ${_esfuerzo(e.value.esfuerzo)}',
+                  '${p.efectos.length} biomarcadores · ${_esfuerzo(p.esfuerzo)}${p.habito.isEmpty ? '' : ' · cierra ${_nombreHabito[p.habito] ?? p.habito}'}',
                   style: t.bodySmall,
                 ),
                 iconColor: MoiraiColors.ink2,
                 collapsedIconColor: MoiraiColors.ink3,
-                children: [for (final f in (_efectosBackend[e.key] ?? const <String, double>{}).entries) _fila(t, f.key, f.value)],
+                children: [
+                  if (p.descripcion.isNotEmpty)
+                    Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(p.descripcion, style: t.bodySmall)),
+                  for (final f in p.efectos.entries) _fila(t, f.key, f.value, extra: f.key == 'hs_CRP' ? ' (∝ tu valor)' : null),
+                ],
               ),
             ),
           const SizedBox(height: Sp.x3),
-          Text('Aproximados, de literatura (ver `interventions.py`). Se suman a la deriva natural cada año simulado.', style: t.bodySmall),
+          Text(
+            'Aproximados, de literatura (ver `interventions.py`). Cada palanca cierra la brecha de un hábito tuyo: si ya lo tienes, no te la ofrezco; si lo tienes a medias, la mitad del efecto. Tus hábitos de hoy también mueven tu línea base (los malos la empeoran, los buenos la frenan). Al combinar palancas descuento ${Fmt.pct(descuento * 100)} por cada una adicional sobre el mismo biomarcador, y cada futuro responde distinto (±${Fmt.pct(heterogeneidad * 100)}): de ahí el rango de los años ganados.',
+            style: t.bodySmall,
+          ),
         ],
       ),
     );

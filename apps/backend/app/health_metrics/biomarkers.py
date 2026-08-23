@@ -66,7 +66,12 @@ class BiomarkerSpec(NamedTuple):
 #: sanity limits — the same spirit as the CHECK constraints on `profiles`
 #: (profiles_height_plausible etc.), not tight reference ranges.
 BIOMARKER_SPECS: dict[str, BiomarkerSpec] = {
-    "hs_CRP": BiomarkerSpec("mg/L", 0.01, 200.0, "Proteína C reactiva de alta sensibilidad"),
+    # Piso 0,1 mg/L: es el límite de detección de los ensayos hs-CRP (ningún
+    # laboratorio reporta menos) y, sobre todo, el piso que usa el paseo
+    # aleatorio de la Capa 3. Con 0,01 las trayectorias que tocaban el piso
+    # entraban a la fórmula como ln(0,001 mg/dL) y sesgaban la mediana ~0,4
+    # años hacia abajo (diagnóstico 2026-08-22).
+    "hs_CRP": BiomarkerSpec("mg/L", 0.1, 200.0, "Proteína C reactiva de alta sensibilidad"),
     "glucosa": BiomarkerSpec("mg/dL", 30.0, 600.0, "Glucosa en ayunas"),
     "albumina": BiomarkerSpec("g/dL", 1.5, 6.0, "Albúmina sérica"),
     "creatinina": BiomarkerSpec("mg/dL", 0.2, 15.0, "Creatinina sérica"),

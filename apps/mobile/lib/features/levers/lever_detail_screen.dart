@@ -134,11 +134,15 @@ class _LeverDetailScreenState extends ConsumerState<LeverDetailScreen> {
         Text.rich(
           TextSpan(
             style: t.bodyLarge!.copyWith(color: MoiraiColors.ink2),
-            children: [
-              const TextSpan(text: 'Corrí '),
-              TextSpan(text: 'los mismos', style: TextStyle(color: MoiraiColors.ink, fontWeight: FontWeight.w800)),
-              TextSpan(text: ' ${Fmt.entero(5000)} futuros otra vez, cambiando solo esto. Cada línea verde es la pareja exacta de una gris.'),
-            ],
+            children: r.curvasDelMotor
+                ? [
+                    const TextSpan(text: 'Corrí '),
+                    TextSpan(text: 'los mismos', style: TextStyle(color: MoiraiColors.ink, fontWeight: FontWeight.w800)),
+                    TextSpan(text: ' ${Fmt.entero(5000)} futuros otra vez, cambiando solo esto: misma semilla, mismos arranques, misma respuesta de cada vida. La banda verde es la pareja exacta de la gris.'),
+                  ]
+                : [
+                    TextSpan(text: 'Comparé tus ${Fmt.entero(5000)} futuros con y sin esto. El servidor no me dio las trayectorias pareadas, así que el rango y el porcentaje son una aproximación.'),
+                  ],
           ),
         ).animate().fadeIn(duration: Motion.slow).slideY(begin: .05, end: 0, curve: Motion.out, duration: Motion.slow),
         const SizedBox(height: Sp.x5),

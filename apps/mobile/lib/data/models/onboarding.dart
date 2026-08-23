@@ -7,6 +7,7 @@ class OnboardingData {
     this.nacionalidad,
     this.paisResidencia,
     this.ancestria,
+    this.perfilConocimiento,
     this.objetivos = const {},
     this.historialFamiliar = const [],
     this.suenoH,
@@ -29,6 +30,12 @@ class OnboardingData {
   final String? nacionalidad;
   final String? paisResidencia;
   final String? ancestria;
+
+  /// Qué tanto sabe la persona de salud/ciencia: `general | curioso |
+  /// profesional`. Decide el registro con el que Moirai le explica en el
+  /// chat (sencillo por defecto; técnico solo si lo pide explícitamente).
+  /// Viaja en `demografia.perfil_conocimiento` y en cada turno de `/chat`.
+  final String? perfilConocimiento;
   final Set<String> objetivos;
   final List<FamiliarCondicion> historialFamiliar;
   final double? suenoH;
@@ -51,6 +58,7 @@ class OnboardingData {
     String? nacionalidad,
     String? paisResidencia,
     String? ancestria,
+    String? perfilConocimiento,
     Set<String>? objetivos,
     List<FamiliarCondicion>? historialFamiliar,
     double? suenoH,
@@ -74,6 +82,7 @@ class OnboardingData {
     nacionalidad: nacionalidad ?? this.nacionalidad,
     paisResidencia: paisResidencia ?? this.paisResidencia,
     ancestria: ancestria ?? this.ancestria,
+    perfilConocimiento: perfilConocimiento ?? this.perfilConocimiento,
     objetivos: objetivos ?? this.objetivos,
     historialFamiliar: historialFamiliar ?? this.historialFamiliar,
     suenoH: suenoH ?? this.suenoH,
@@ -97,6 +106,7 @@ class OnboardingData {
     'nacionalidad': nacionalidad,
     'pais_residencia': paisResidencia,
     'ancestria_reportada': ancestria,
+    'perfil_conocimiento': perfilConocimiento,
     'objetivos': objetivos.toList(),
     'historial_familiar': historialFamiliar.map((e) => e.toJson()).toList(),
     'habitos_moduladores': {
@@ -124,6 +134,7 @@ class OnboardingData {
       nacionalidad: j['nacionalidad'] as String?,
       paisResidencia: j['pais_residencia'] as String?,
       ancestria: j['ancestria_reportada'] as String?,
+      perfilConocimiento: j['perfil_conocimiento'] as String?,
       objetivos: ((j['objetivos'] as List?) ?? const []).map((e) => '$e').toSet(),
       historialFamiliar: ((j['historial_familiar'] as List?) ?? const [])
           .map((e) => FamiliarCondicion.fromJson((e as Map).cast<String, dynamic>()))
@@ -195,6 +206,20 @@ abstract final class Catalogos {
     'sueno': 'Dormir mejor',
     'peso': 'Peso saludable',
     'salud_mental': 'Salud mental',
+  };
+
+  /// `demografia.perfil_conocimiento`: cómo quiere la persona que Moirai le
+  /// explique. Etiqueta corta (chips del perfil) + frase larga (onboarding).
+  static const perfilConocimiento = <String, String>{
+    'general': 'Poco o nada',
+    'curioso': 'Algo',
+    'profesional': 'Mucho',
+  };
+
+  static const perfilConocimientoDetalle = <String, String>{
+    'general': 'Explícamelo fácil, con palabras de todos los días.',
+    'curioso': 'Me gusta entender el porqué; nombra las cosas por su nombre.',
+    'profesional': 'Trabajo en salud o ciencia; puedes ir al grano.',
   };
 
   static const condicionesFamiliares = <String, String>{

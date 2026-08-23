@@ -6,7 +6,7 @@ collect without wiping the rest.
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict, model_validator
@@ -26,6 +26,7 @@ _EXAMPLE = {
     "demografia": {
         "ancestria_reportada": "mixta_latam",
         "escolaridad_anios": 12,
+        "perfil_conocimiento": "general",
     },
     "biomarcadores": [
         {"nombre": "hs_CRP", "valor": 2.1, "unidad": "mg/L", "fuente": "documento"},
@@ -41,6 +42,7 @@ _EXAMPLE = {
         "actividad": "baja",
         "alimentacion": "media",
         "estres": "alto",
+        "alcohol": "ocasional",
     },
     "historia_familiar": ["diabetes_t2", "alzheimer_materno"],
     "objetivos_usuario": ["energia", "prevencion"],
@@ -53,6 +55,15 @@ _EXAMPLE = {
 }
 
 
+#: How much the person already knows about health/science — what the chat
+#: uses to pick its register (`app/chat_rag/prompt.py`). `general` = plain
+#: everyday words (the default when unset), `curioso` = can name the concept
+#: and the mechanism, `profesional` = works in health/science, precise
+#: vocabulary is fine. The chat is warm and simple at every level and only
+#: goes deep-technical when the person explicitly asks for it.
+PerfilConocimiento = Literal["general", "curioso", "profesional"]
+
+
 class Demografia(BaseModel):
     """Age and sex live on the profile (`date_of_birth`, `sex_at_birth` via
     `/me`) — not duplicated here."""
@@ -61,6 +72,7 @@ class Demografia(BaseModel):
 
     ancestria_reportada: str | None = None
     escolaridad_anios: int | None = None
+    perfil_conocimiento: PerfilConocimiento | None = None
 
 
 class Biomarcador(BaseModel):
@@ -95,6 +107,13 @@ class Biomarcador(BaseModel):
 
 
 class Habitos(BaseModel):
+    """Lo que el motor lee para personalizar la línea base y decidir qué
+    palancas aplican (`interventions.brechas_desde_habitos`): `sueno_h` en
+    horas; `tabaco`; `actividad`, `alimentacion` en `baja|media|alta`;
+    `estres` en `bajo|medio|alto`; `alcohol` en `nunca|ocasional|moderado|alto`.
+    Texto libre a propósito (el vocabulario lo fija la app), pero un valor
+    fuera de esos se trata como "no registrado"."""
+
     model_config = ConfigDict(extra="forbid")
 
     sueno_h: float | None = None
@@ -102,6 +121,7 @@ class Habitos(BaseModel):
     actividad: str | None = None
     alimentacion: str | None = None
     estres: str | None = None
+    alcohol: str | None = None
 
 
 class HealthContextPatch(BaseModel):

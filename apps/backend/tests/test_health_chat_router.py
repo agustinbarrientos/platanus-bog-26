@@ -13,6 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.auth import CurrentUser, get_current_user
+from app.chat_rag.prompt import REGISTROS
 from app.db import get_db
 from app.main import create_app
 from app.models import HealthContext, Profile
@@ -70,15 +71,15 @@ class FakeAnthropic:
 @pytest.fixture
 def client(monkeypatch):
     app = create_app()
+    holder: dict = {"session": FakeSession()}
 
     async def fake_db():
-        yield FakeSession()
+        yield holder["session"]
 
     app.dependency_overrides[get_db] = fake_db
     app.dependency_overrides[get_current_user] = lambda: CurrentUser(
         id=USER_ID, email="ana@moirai.test", token_id=uuid.uuid4()
     )
-    holder: dict = {}
     monkeypatch.setattr(health_chat, "get_anthropic_client", lambda: holder["fake"])
     with TestClient(app) as c:
         c.holder = holder  # type: ignore[attr-defined]
@@ -157,6 +158,29 @@ def test_unknown_fields_inside_resultado_are_ignored_but_not_at_top_level(client
     tolerante = {**RESULTADO, "muestra_trayectorias": [[1, 2, 3]], "campo_nuevo": 1}
     assert client.post("/me/health-context/chat", json={"message": "hola", "resultado": tolerante}).status_code == 200
     assert client.post("/me/health-context/chat", json={"message": "hola", "otro": 1}).status_code == 422
+
+
+def test_register_comes_from_body_then_stored_demografia_then_default(client):
+    # Nothing stored, nothing sent → plain words.
+    client.holder["fake"] = FakeAnthropic([_text("ok")])
+    assert client.post("/me/health-context/chat", json={"message": "hola"}).status_code == 200
+    assert REGISTROS["general"] in client.holder["fake"].calls[0]["system"]
+
+    # Stored in the health context (what onboarding saves) → used.
+    client.holder["session"].health.demografia = {**CONTEXT["demografia"], "perfil_conocimiento": "curioso"}
+    client.holder["fake"] = FakeAnthropic([_text("ok")])
+    assert client.post("/me/health-context/chat", json={"message": "hola"}).status_code == 200
+    assert REGISTROS["curioso"] in client.holder["fake"].calls[0]["system"]
+
+    # Sent on the request (what the app has locally) → wins over stored.
+    client.holder["fake"] = FakeAnthropic([_text("ok")])
+    r = client.post("/me/health-context/chat", json={"message": "hola", "perfil_conocimiento": "profesional"})
+    assert r.status_code == 200
+    system = client.holder["fake"].calls[0]["system"]
+    assert REGISTROS["profesional"] in system and REGISTROS["curioso"] not in system
+
+    # Closed vocabulary, like `demografia.perfil_conocimiento` itself.
+    assert client.post("/me/health-context/chat", json={"message": "hola", "perfil_conocimiento": "experto"}).status_code == 422
 
 
 def test_refusal_or_empty_reply_gets_a_safe_fallback(client):

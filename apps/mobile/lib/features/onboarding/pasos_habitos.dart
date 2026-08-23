@@ -51,10 +51,59 @@ class PasoObjetivos extends ConsumerWidget {
                   tone: MoTone.brand,
                   icon: Icons.auto_awesome_rounded,
                   text: ob.objetivos.length == 1
-                      ? 'Anotado. Cuando te muestre palancas, pongo primero las que tocan eso.'
-                      : 'Anotados ${Fmt.entero(ob.objetivos.length)} objetivos. Ordeno las palancas según lo que más te importa.',
+                      ? 'Anotado. Cuando te muestre palancas, te marco las que tocan eso.'
+                      : 'Anotados ${Fmt.entero(ob.objetivos.length)} objetivos. Te marco las palancas que tocan lo que más te importa.',
                 ),
         ),
+      ],
+    );
+  }
+}
+
+// ── d2. Cómo te explico ──────────────────────────────────────────────────
+/// "¿Qué tanto sabes de salud?": fija el registro del chat
+/// (`perfil_conocimiento`). Moirai siempre habla sencillo; esto solo decide
+/// cuánto vocabulario puede dar por sabido.
+class PasoPerfil extends ConsumerWidget {
+  const PasoPerfil({super.key});
+
+  static const _iconos = <String, IconData>{
+    'general': Icons.chat_bubble_outline_rounded,
+    'curioso': Icons.lightbulb_outline_rounded,
+    'profesional': Icons.medical_services_outlined,
+  };
+
+  static const _respuesta = <String, String>{
+    'general': 'Perfecto. Te lo cuento como a un amigo, sin palabras raras. Si un día quieres el detalle técnico, pídemelo y te lo doy.',
+    'curioso': 'Me gusta. Te explico sencillo, pero nombro las cosas por su nombre y te cuento el porqué. Si quieres ir más hondo, pídemelo.',
+    'profesional': 'Entendido. Uso el vocabulario del área y voy al grano. La parte técnica completa te la doy cuando me la pidas.',
+  };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ob = ref.watch(onboardingProvider);
+    final n = ref.read(onboardingProvider.notifier);
+    final v = ob.perfilConocimiento;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        OpcionLista<String>(
+          opciones: [
+            for (final e in Catalogos.perfilConocimiento.entries)
+              (value: e.key, label: e.value, icon: _iconos[e.key] ?? Icons.chat_bubble_outline_rounded, sub: Catalogos.perfilConocimientoDetalle[e.key]),
+          ],
+          value: v,
+          onChanged: (p) => n.update((d) => d.copyWith(perfilConocimiento: p)),
+        ),
+        const SizedBox(height: Sp.x6),
+        AnimatedSwitcher(
+          duration: Motion.base,
+          child: v == null
+              ? const SizedBox.shrink()
+              : MoNotice(key: ValueKey(v), tone: MoTone.brand, icon: Icons.auto_awesome_rounded, text: _respuesta[v] ?? _respuesta['general']!),
+        ),
+        const SizedBox(height: Sp.x5),
+        const MoFootnote('Lo puedes cambiar cuando quieras desde tu perfil.', center: false),
       ],
     );
   }

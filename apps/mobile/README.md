@@ -46,8 +46,8 @@ lib/
     models/            Me/Profile, OnboardingData, Biomarcador, SimulacionInput/Resultado (spec §3/§8), Chat
     repositories/      auth, profile (+health-context), exams, simulation (phenoage+montecarlo → spec §8), chat, wearables, demo_data
     mock/              mock_engine.dart
-  features/            auth, onboarding, exams, simulation, future, levers, backing, profile, chat, shell
+  features/            auth, onboarding, exams, simulation, future, levers, backing, profile, report, chat, shell
   widgets/             mo.dart (MoScreen, MoCard, MoChoice…), mascot.dart, big_number.dart, fan_chart.dart, lever_card.dart
 ```
 
-Flujo: Bienvenida → registro → onboarding (13 pasos) → exámenes (foto / archivo / manual / después) → confirmar lectura → **simulando en vivo** → Tu futuro · Simular (palancas) · Respaldo · Perfil, con "Pregúntame" (chat) desde Futuro y Perfil.
+Flujo: Bienvenida → registro → onboarding (13 pasos) → exámenes (foto / archivo / manual / después) → confirmar lectura → **simulando en vivo** → Tu futuro · Simular (palancas) · Pregúntame (chat) · Perfil, con "Respaldo" desde la esquina superior derecha de Futuro.

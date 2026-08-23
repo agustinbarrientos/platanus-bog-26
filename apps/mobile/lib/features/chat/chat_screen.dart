@@ -15,6 +15,7 @@ import '../../data/models/simulacion.dart';
 import '../../data/repositories/chat_repository.dart';
 import '../../widgets/mascot.dart';
 import '../../widgets/mo.dart';
+import 'voz_controller.dart';
 
 /// Conversación en memoria para la sesión: salir y volver a la pantalla no la
 /// pierde. Los mensajes `pendiente` son locales (turno en vuelo + burbuja
@@ -43,6 +44,7 @@ class ChatHistoryNotifier extends Notifier<List<ChatMessage>> {
         base,
         resultado: ref.read(ultimoResultadoProvider),
         enfoque: enfoque,
+        perfilConocimiento: ref.read(onboardingProvider).perfilConocimiento,
       );
       final nuevo = r.history.isNotEmpty
           ? r.history
@@ -81,9 +83,13 @@ final chatHistoryProvider = NotifierProvider<ChatHistoryNotifier, List<ChatMessa
 /// "sobre algo" ([enfoque], p. ej. `escenario:0` desde el detalle de una
 /// palanca) y con una [preguntaInicial] que se envía sola al entrar.
 class ChatScreen extends ConsumerStatefulWidget {
-  const ChatScreen({super.key, this.enfoque, this.preguntaInicial});
+  const ChatScreen({super.key, this.enfoque, this.preguntaInicial, this.enPestana = false});
   final String? enfoque;
   final String? preguntaInicial;
+
+  /// `true` cuando vive como pestaña del shell (bottom nav): sin botón de
+  /// volver. El historial es el mismo que el del chat a pantalla completa.
+  final bool enPestana;
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -115,6 +121,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   void dispose() {
+    // Salir de la pantalla calla a Moirai: nada peor que una voz que sigue
+    // hablando de tu salud desde otra pantalla.
+    ref.read(vozProvider.notifier).detener();
     _moodTimer?.cancel();
     _input.dispose();
     _scroll.dispose();
@@ -153,8 +162,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _setMood(MascotMood.working);
     _irAlFinal();
     try {
-      await ref.read(chatHistoryProvider.notifier).enviar(t, enfoque: _enfoque);
+      final r = await ref.read(chatHistoryProvider.notifier).enviar(t, enfoque: _enfoque);
       _setMood(MascotMood.happy, volverA: const Duration(milliseconds: 1800));
+      // "Leer en voz alta" solo lee lo que llega nuevo; las respuestas
+      // anteriores se leen tocando su altavoz.
+      if (ref.read(lecturaEnVozAltaProvider)) unawaited(ref.read(vozProvider.notifier).hablar(r.reply));
     } on ApiException catch (e) {
       _setMood(MascotMood.gentle, volverA: const Duration(milliseconds: 2400));
       if (mounted) setState(() => _aviso = e.message);
@@ -164,6 +176,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     } finally {
       if (mounted) setState(() => _enviando = false);
       _irAlFinal();
+    }
+  }
+
+  /// Micrófono: un toque graba, otro corta. Toque-y-corte en vez de
+  /// mantener presionado — es más accesible y no castiga un dedo que se
+  /// resbala a mitad de una pregunta larga.
+  Future<void> _alternarMicrofono() async {
+    final voz = ref.read(vozProvider.notifier);
+    if (ref.read(vozProvider).grabando) {
+      _setMood(MascotMood.working);
+      final pregunta = await voz.detenerYTranscribir();
+      if (!mounted) return;
+      if (pregunta == null) {
+        _setMood(MascotMood.gentle, volverA: const Duration(milliseconds: 2000));
+        return;
+      }
+      await _enviar(pregunta);
+      return;
+    }
+    if (await voz.grabar()) {
+      _focus.unfocus();
+      _setMood(MascotMood.working);
+    } else if (mounted) {
+      _setMood(MascotMood.gentle, volverA: const Duration(milliseconds: 2000));
     }
   }
 
@@ -183,22 +219,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final vacio = mensajes.isEmpty && !_enviando;
     final t = Theme.of(context).textTheme;
 
+    final voz = ref.watch(vozProvider);
+    final leerEnVozAlta = ref.watch(lecturaEnVozAltaProvider);
+    // Mientras suena la voz, la mascota está viva: es lo que hace que se
+    // sienta un personaje hablando y no un audio pegado encima del chat.
+    final mood = voz.leyendo ? MascotMood.happy : (voz.grabando ? MascotMood.working : _mood);
+
     return Scaffold(
       backgroundColor: MoiraiColors.bg,
       appBar: AppBar(
-        leading: BackButton(
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go(Routes.future);
-            }
-          },
-        ),
-        titleSpacing: 0,
+        automaticallyImplyLeading: !widget.enPestana,
+        leading: widget.enPestana
+            ? null
+            : BackButton(
+                onPressed: () {
+                  if (context.canPop()) {
+                    context.pop();
+                  } else {
+                    context.go(Routes.future);
+                  }
+                },
+              ),
+        titleSpacing: widget.enPestana ? Sp.gutter : 0,
         title: Row(
           children: [
-            MoiraiMascot(size: 36, halo: false, mood: _mood),
+            MoiraiMascot(size: 36, halo: false, mood: mood),
             const SizedBox(width: Sp.x4),
             Expanded(
               child: Column(
@@ -207,7 +252,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 children: [
                   Text('Pregúntame', style: t.titleLarge),
                   Text(
-                    resultado == null ? 'Solo sé lo que me has contado de ti.' : 'Respondo con tus datos y tu última simulación.',
+                    voz.grabando
+                        ? 'Te estoy escuchando…'
+                        : voz.transcribiendo
+                            ? 'Entendiendo lo que dijiste…'
+                            : voz.leyendo
+                                ? 'Leyéndote la respuesta'
+                                : resultado == null
+                                    ? 'Solo sé lo que me has contado de ti.'
+                                    : 'Respondo con tus datos y tu última simulación.',
                     style: t.bodySmall!.copyWith(color: MoiraiColors.ink2),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -218,6 +271,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: leerEnVozAlta ? 'No leer en voz alta' : 'Leer las respuestas en voz alta',
+            isSelected: leerEnVozAlta,
+            icon: Icon(leerEnVozAlta ? Icons.volume_up_rounded : Icons.volume_off_rounded,
+                color: leerEnVozAlta ? MoiraiColors.blueInk : MoiraiColors.ink3),
+            onPressed: () {
+              if (leerEnVozAlta) ref.read(vozProvider.notifier).detener();
+              ref.read(lecturaEnVozAltaProvider.notifier).alternar();
+            },
+          ),
           IconButton(
             tooltip: 'Nueva conversación',
             icon: const Icon(Icons.refresh_rounded),
@@ -272,11 +335,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ),
                 ).animate().fadeIn(duration: Motion.base).slideY(begin: .1, end: 0, curve: Motion.out, duration: Motion.base),
               ),
+            if (voz.aviso != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(Sp.gutter, 0, Sp.gutter, Sp.x3),
+                child: MoNotice(
+                  text: voz.aviso!,
+                  tone: MoTone.watch,
+                  icon: Icons.mic_off_rounded,
+                  action: TextButton(
+                    onPressed: ref.read(vozProvider.notifier).limpiarAviso,
+                    child: const Text('Entendido'),
+                  ),
+                ).animate().fadeIn(duration: Motion.base).slideY(begin: .1, end: 0, curve: Motion.out, duration: Motion.base),
+              ),
             _Composer(
               controller: _input,
               focusNode: _focus,
               enviando: _enviando,
+              grabando: voz.grabando,
+              transcribiendo: voz.transcribiendo,
               onSend: _enviar,
+              onMicrofono: _alternarMicrofono,
             ),
           ],
         ),
@@ -388,13 +467,13 @@ class _PistasDeContexto extends StatelessWidget {
 
 // ─── Burbujas ───────────────────────────────────────────────────────────────
 
-class _Burbuja extends StatelessWidget {
+class _Burbuja extends ConsumerWidget {
   const _Burbuja({required this.mensaje, required this.conAvatar});
   final ChatMessage mensaje;
   final bool conAvatar;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final esUsuario = mensaje.esUsuario;
     final escribiendo = !esUsuario && mensaje.pendiente;
     final maxAncho = MediaQuery.sizeOf(context).width * .78;
@@ -436,10 +515,21 @@ class _Burbuja extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         _TextoConNegritas(mensaje.content, style: t.bodyLarge!.copyWith(color: MoiraiColors.ink, height: 1.45)),
-                        if (mensaje.fuentes.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          _FuentesLinea(fuentes: mensaje.fuentes),
-                        ],
+                        const SizedBox(height: 6),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _BotonAltavoz(texto: mensaje.content),
+                            const SizedBox(width: Sp.x2),
+                            if (mensaje.fuentes.isNotEmpty)
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.only(top: 7),
+                                  child: _FuentesLinea(fuentes: mensaje.fuentes),
+                                ),
+                              ),
+                          ],
+                        ),
                       ],
                     ),
         ),
@@ -467,6 +557,60 @@ class _Burbuja extends StatelessWidget {
         .fadeIn(duration: Motion.slow, curve: Motion.out)
         .slideY(begin: .12, end: 0, duration: Motion.slow, curve: Motion.out)
         .slideX(begin: esUsuario ? .04 : -.04, end: 0, duration: Motion.slow, curve: Motion.out);
+  }
+}
+
+/// Altavoz de una respuesta: la lee en voz de Moirai, o la calla si ya la
+/// estaba leyendo. Discreto a propósito — la respuesta escrita sigue siendo
+/// la principal; la voz es una ayuda, no el canal.
+///
+/// Cuando el audio viene del teléfono (sin voz configurada, sin créditos, o
+/// modo demo sin red) el ícono lo dice. Es la misma regla que el resto del
+/// producto: nunca hacer pasar una aproximación por lo real.
+class _BotonAltavoz extends ConsumerWidget {
+  const _BotonAltavoz({required this.texto});
+  final String texto;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final voz = ref.watch(vozProvider);
+    final activo = voz.hablando == texto;
+    final preparando = activo && voz.preparando;
+    final local = activo && voz.fuente == VozFuente.dispositivo;
+
+    return Semantics(
+      button: true,
+      label: activo ? 'Dejar de leer en voz alta' : 'Leer esta respuesta en voz alta',
+      child: SizedBox(
+        width: 34,
+        height: 34,
+        child: Material(
+          color: activo ? MoiraiColors.blueSoft : Colors.transparent,
+          shape: const CircleBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () => ref.read(vozProvider.notifier).alternar(texto),
+            child: Center(
+              child: preparando
+                  ? const SizedBox(
+                      width: 15,
+                      height: 15,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: MoiraiColors.blue),
+                    )
+                  : Icon(
+                      activo
+                          ? Icons.stop_rounded
+                          : local
+                              ? Icons.phonelink_ring_rounded
+                              : Icons.volume_up_rounded,
+                      size: 18,
+                      color: activo ? MoiraiColors.blueInk : MoiraiColors.ink3,
+                    ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -630,11 +774,23 @@ class _PuntosEscribiendo extends StatelessWidget {
 // ─── Composer ───────────────────────────────────────────────────────────────
 
 class _Composer extends StatelessWidget {
-  const _Composer({required this.controller, required this.focusNode, required this.enviando, required this.onSend});
+  const _Composer({
+    required this.controller,
+    required this.focusNode,
+    required this.enviando,
+    required this.grabando,
+    required this.transcribiendo,
+    required this.onSend,
+    required this.onMicrofono,
+  });
+
   final TextEditingController controller;
   final FocusNode focusNode;
   final bool enviando;
+  final bool grabando;
+  final bool transcribiendo;
   final ValueChanged<String> onSend;
+  final VoidCallback onMicrofono;
 
   @override
   Widget build(BuildContext context) {
@@ -649,52 +805,114 @@ class _Composer extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Expanded(
-              child: TextField(
-                controller: controller,
-                focusNode: focusNode,
-                minLines: 1,
-                maxLines: 5,
-                maxLength: ChatRepository.maxMessage,
-                buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
-                textInputAction: TextInputAction.send,
-                textCapitalization: TextCapitalization.sentences,
-                keyboardType: TextInputType.multiline,
-                onSubmitted: enviando ? null : onSend,
-                decoration: InputDecoration(
-                  hintText: 'Escríbeme una pregunta',
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.card), borderSide: const BorderSide(color: MoiraiColors.line, width: 1.5)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.card), borderSide: const BorderSide(color: MoiraiColors.line, width: 1.5)),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.card), borderSide: const BorderSide(color: MoiraiColors.blue, width: 2)),
-                ),
-              ),
+              child: grabando
+                  ? const _Escuchando()
+                  : TextField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      minLines: 1,
+                      maxLines: 5,
+                      enabled: !transcribiendo,
+                      maxLength: ChatRepository.maxMessage,
+                      buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                      textInputAction: TextInputAction.send,
+                      textCapitalization: TextCapitalization.sentences,
+                      keyboardType: TextInputType.multiline,
+                      onSubmitted: enviando ? null : onSend,
+                      decoration: InputDecoration(
+                        hintText: transcribiendo ? 'Entendiendo lo que dijiste…' : 'Escríbeme o tócame el micrófono',
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.card), borderSide: const BorderSide(color: MoiraiColors.line, width: 1.5)),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.card), borderSide: const BorderSide(color: MoiraiColors.line, width: 1.5)),
+                        disabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.card), borderSide: const BorderSide(color: MoiraiColors.line, width: 1.5)),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.card), borderSide: const BorderSide(color: MoiraiColors.blue, width: 2)),
+                      ),
+                    ),
             ),
             const SizedBox(width: Sp.x3),
             ListenableBuilder(
               listenable: controller,
               builder: (context, _) {
-                final activo = !enviando && controller.text.trim().isNotEmpty;
+                // Un solo botón: micrófono cuando no hay nada escrito, flecha
+                // cuando sí. Es el gesto que la gente ya conoce, y deja el
+                // área táctil de 50 px en vez de partirla en dos botones.
+                final hayTexto = controller.text.trim().isNotEmpty;
+                final esMicro = !hayTexto && !enviando;
+                final ocupado = enviando || transcribiendo;
+
                 return SizedBox(
                   width: 50,
                   height: 50,
                   child: IconButton.filled(
-                    tooltip: 'Enviar',
-                    onPressed: activo ? () => onSend(controller.text) : null,
+                    tooltip: grabando
+                        ? 'Terminé de hablar'
+                        : esMicro
+                            ? 'Hazme una pregunta hablando'
+                            : 'Enviar',
+                    onPressed: ocupado ? null : (esMicro || grabando ? onMicrofono : () => onSend(controller.text)),
                     style: IconButton.styleFrom(
-                      backgroundColor: MoiraiColors.action,
+                      backgroundColor: grabando ? MoiraiColors.blueInk : MoiraiColors.action,
                       foregroundColor: Colors.white,
                       disabledBackgroundColor: MoiraiColors.surface2,
                       disabledForegroundColor: MoiraiColors.ink3,
                     ),
-                    icon: enviando
+                    icon: ocupado
                         ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.2, color: MoiraiColors.ink3))
-                        : const Icon(Icons.arrow_upward_rounded, size: 24),
+                        : grabando
+                            ? const Icon(Icons.stop_rounded, size: 24)
+                            : esMicro
+                                ? const Icon(Icons.mic_rounded, size: 24)
+                                : const Icon(Icons.arrow_upward_rounded, size: 24),
                   ),
                 );
               },
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Reemplaza al campo de texto mientras Moirai escucha. Barras que respiran
+/// —no un nivel de audio real: fingir un medidor sería mentir sobre lo que
+/// estoy midiendo— y una sola línea que dice qué hacer para terminar.
+class _Escuchando extends StatelessWidget {
+  const _Escuchando();
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    return Container(
+      height: 50,
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      decoration: BoxDecoration(
+        color: MoiraiColors.blueSoft,
+        borderRadius: BorderRadius.circular(Rad.card),
+        border: Border.all(color: MoiraiColors.blue, width: 1.5),
+      ),
+      child: Row(
+        children: [
+          for (var i = 0; i < 4; i++) ...[
+            if (i > 0) const SizedBox(width: 4),
+            Container(
+              width: 3,
+              height: 16,
+              decoration: BoxDecoration(color: MoiraiColors.blue, borderRadius: BorderRadius.circular(2)),
+            )
+                .animate(onPlay: (c) => c.repeat(reverse: true), delay: Duration(milliseconds: 130 * i))
+                .scaleY(begin: .4, end: 1.35, duration: const Duration(milliseconds: 520), curve: Curves.easeInOut),
+          ],
+          const SizedBox(width: Sp.x3),
+          Expanded(
+            child: Text(
+              'Te escucho. Toca para terminar.',
+              style: t.bodyMedium!.copyWith(color: MoiraiColors.blueInk, fontWeight: FontWeight.w600),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
       ),
     );
   }

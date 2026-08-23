@@ -41,12 +41,13 @@ class _LeversScreenState extends ConsumerState<LeversScreen> {
     };
     final filtro = opciones.containsKey(_filtro) ? _filtro : 0;
     final lista = filtro == 0 ? todos : todos.where((e) => e.intervenciones.length == filtro).toList();
+    final objetivos = ref.watch(onboardingProvider).objetivos;
 
     return MoScreen(
       children: [
         const MoScreenHeader(
           title: 'Lo que puedes mover',
-          subtitle: 'Las ordené por cuánto mueven tu edad biológica por unidad de esfuerzo. Toca una para ver los futuros pareados.',
+          subtitle: 'Solo las palancas que aplican a tus hábitos, ordenadas por cuánto mueven tu edad biológica por unidad de esfuerzo. Toca una para ver los futuros pareados.',
         ),
         const SizedBox(height: Sp.x6),
         SingleChildScrollView(
@@ -74,7 +75,7 @@ class _LeversScreenState extends ConsumerState<LeversScreen> {
             alignment: Alignment.topCenter,
             children: [...previous, ?current],
           ),
-          child: _LeverList(key: ValueKey(filtro), todos: todos, lista: lista, filtro: filtro),
+          child: _LeverList(key: ValueKey(filtro), todos: todos, lista: lista, filtro: filtro, objetivos: objetivos),
         ),
         const SizedBox(height: Sp.stackSection),
         const MoNotice(
@@ -89,10 +90,11 @@ class _LeversScreenState extends ConsumerState<LeversScreen> {
 }
 
 class _LeverList extends StatelessWidget {
-  const _LeverList({super.key, required this.todos, required this.lista, required this.filtro});
+  const _LeverList({super.key, required this.todos, required this.lista, required this.filtro, this.objetivos = const {}});
   final List<Escenario> todos;
   final List<Escenario> lista;
   final int filtro;
+  final Set<String> objetivos;
 
   @override
   Widget build(BuildContext context) {
@@ -118,6 +120,7 @@ class _LeverList extends StatelessWidget {
                 escenario: e,
                 rank: indexGlobal + 1,
                 destacada: indexGlobal == 0,
+                objetivos: objetivos,
                 onTap: () => context.go(Routes.leverDetail(indexGlobal < 0 ? i : indexGlobal)),
               );
             },

@@ -1,46 +1,58 @@
-"""Capa 3 — Monte Carlo (MOIRAI_ENGINE_SPEC.md §6).
+"""Capa 3 — Monte Carlo (MOIRAI_ENGINE_SPEC.md §6): correr la Capa 2 N veces
+con ruido biológico y devolver el abanico de futuros.
 
-Corre la regla de la Capa 2 N veces, añadiendo ruido biológico fresco en cada
-paso anual. Las N trayectorias forman el abanico: mediana, P10 y P90 **año por
-año**, no solo al horizonte. Eso es lo que da a la vez la honestidad (la banda
-se ensancha con los años porque el futuro se conoce peor) y el wow visual (la
-pantalla C dibuja el abanico).
+Qué hace, y por qué así:
 
-Dos cosas que esta capa hace y que no son obvias:
+- **Ruido año a año** (`DYNAMICS[...].ruido_anual_sd`) sobre cada biomarcador,
+  nuevo cada año simulado: es lo que convierte una predicción puntual en una
+  distribución de futuros plausibles.
+- **Incertidumbre de arranque para lo imputado**: un biomarcador NO medido no
+  se fija en la mediana — se muestrea de la dispersión poblacional de su grupo
+  de edad y sexo (`nhanes_reference.DISPERSION`). Es lo que la spec exige
+  ("biomarcadores imputados ⇒ más sigma ⇒ banda más ancha") y lo que hace
+  verdad la promesa de la app de que medir angosta el rango.
+- **Futuros pareados**: todos los escenarios usan exactamente los mismos
+  arranques muestreados y los mismos ruidos (misma semilla, mismo orden), así
+  que "la misma vida" se puede comparar con y sin la palanca. Los años ganados
+  son la distribución de esa diferencia trayectoria a trayectoria — su mediana,
+  su P10–P90 y el porcentaje de futuros en que la palanca termina mejor.
+- **Curva por año**: PhenoAge se evalúa en cada año de cada trayectoria
+  (vectorizado, `phenoage_years_vector`), así que la banda P10–P90 sale año a
+  año en vez de interpolarse en la app.
+- **Valor de información**: para cada biomarcador imputado, cuánto se
+  angostaría la banda de la línea base si estuviera medido (misma semilla, ese
+  biomarcador fijo en la mediana).
 
-- **Los biomarcadores imputados ensanchan la banda.** Si un valor no se midió
-  sino que salió de la tabla de medianas, su ruido anual se multiplica por
-  `SIGMA_IMPUTADO_FACTOR`. Es el requisito de §4 ("menos datos reales -> banda
-  P10-P90 más ancha") y lo que hace que "qué conviene medir" tenga sentido como
-  pantalla: medir un biomarcador angosta el abanico de verdad.
-- **PhenoAge se evalúa vectorizado.** El bucle escalar sobre N trayectorias x
-  (años+1) tardaba ~26 s por request con los valores por defecto. `_phenoage_vector`
-  hace lo mismo con numpy en una fracción de eso, sin duplicar ni un solo
-  número de la Capa 1: los coeficientes se importan de `phenoage.py` y los
-  factores de conversión de unidades se derivan sondeando `to_formula_units()`.
-  `tests/test_montecarlo.py` verifica que las dos rutas den el mismo resultado.
+Lo que NO hace (spec §12): SHAP sobre las trayectorias, más de 3 palancas.
 """
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from typing import NamedTuple
 
 import numpy as np
 
 from app.health_metrics.biomarkers import BIOMARKER_SPECS, PHENOAGE_BIOMARKERS
-from app.health_metrics.evolution import deriva_total
-from app.health_metrics.interventions import DYNAMICS, SCENARIOS
-from app.health_metrics.nhanes_reference import impute_missing
-from app.health_metrics.phenoage import (
-    _BA_EXPONENT,
-    _BA_INTERCEPT,
-    _BA_SCALE,
-    _COEF,
-    _GAMMA,
-    _INTERCEPT,
-    _MORTALITY_SCALE,
-    to_formula_units,
+from app.health_metrics.evolution import (
+    ajuste_habitos,
+    contribuciones_habitos,
+    deriva_natural,
+    efectos_palancas,
+    factor_combinacion,
 )
+from app.health_metrics.interventions import (
+    DYNAMICS,
+    EFECTO_RELATIVO_A,
+    HETEROGENEIDAD_RESPUESTA,
+    PALANCAS,
+    aplica,
+    esfuerzo_de,
+    etiqueta_de,
+    expandir,
+)
+from app.health_metrics.nhanes_reference import impute_missing, sample_reference
+from app.health_metrics.phenoage import phenoage_years_vector
 
 #: Hard ceiling on trajectory count so an authenticated caller can't turn this
 #: into a CPU-burning DoS by asking for an arbitrarily large N.
@@ -49,84 +61,60 @@ MAX_ANIOS = 30
 
 DEFAULT_TRAYECTORIAS = 5000
 DEFAULT_ANIOS = 10
+#: Semilla por defecto: el mismo input da el mismo abanico (reproducible en un
+#: demo y entre escenarios). El caller puede pasar otra.
+DEFAULT_SEED = 20260822
+#: Cuántas trayectorias de la línea base se devuelven para dibujar.
+MUESTRA_TRAYECTORIAS = 40
 
-#: Cuánto se multiplica el ruido anual de un biomarcador que fue imputado en
-#: vez de medido. La spec (§4, §6) pide "ensanchar la incertidumbre" sin dar un
-#: número; 2x es una elección de modelado: dice que de un valor inferido de la
-#: mediana poblacional sabemos aproximadamente la mitad de lo que sabemos de uno
-#: medido en el laboratorio de esta persona. No sale de ninguna publicación.
-SIGMA_IMPUTADO_FACTOR = 2.0
-
-
-# --- PhenoAge vectorizado (misma fórmula que la Capa 1, sin copiar números) ---
-
-#: Nombre de almacenamiento -> nombre en unidades de la fórmula. Solo nombres;
-#: todos los factores numéricos se derivan del sondeo de abajo.
-_FORMULA_KEY = {
-    "albumina": "albumin_gL",
-    "creatinina": "creatinine_umol",
-    "glucosa": "glucose_mmol",
-    "hs_CRP": "ln_crp_mgdL",
-    "linfocitos_pct": "lymphocyte_pct",
-    "vcm": "mcv_fL",
-    "rdw": "rdw_pct",
-    "fosfatasa_alcalina": "alp_UL",
-    "leucocitos": "wbc_1000uL",
-}
-
-#: Todas las conversiones de `to_formula_units` son multiplicativas (g/dL->g/L
-#: es x10, mg/dL->umol/L es x88.402, ...) salvo la de hs_CRP, que es un log.
-#: Sondear la función con todos los valores en 1.0 devuelve entonces
-#: exactamente el factor de cada una — y para hs_CRP, ln(1/10), que es el
-#: término aditivo de ln(v/10) = ln(v) + ln(1/10). Así el fast path no repite
-#: ni una constante de la Capa 1: si allá cambia una conversión, cambia acá.
-_SONDEO = to_formula_units({nombre: 1.0 for nombre in PHENOAGE_BIOMARKERS})
-_ESCALA = {
-    nombre: _SONDEO[_FORMULA_KEY[nombre]]
-    for nombre in PHENOAGE_BIOMARKERS
-    if nombre != "hs_CRP"
-}
-_LN_CRP_OFFSET = _SONDEO["ln_crp_mgdL"]
-
-
-def _phenoage_vector(state: np.ndarray, edad: float) -> np.ndarray:
-    """PhenoAge para las N trayectorias a la vez.
-
-    `state` tiene forma (9, N) con los biomarcadores en el orden de
-    `PHENOAGE_BIOMARKERS`, en unidades de almacenamiento. Devuelve N edades
-    biológicas. Usa la misma forma numéricamente estable que
-    `phenoage.phenoage_years` (salta el score de mortalidad, que satura en 1.0
-    y hace explotar el log).
-    """
-    xb = _INTERCEPT + _COEF["age_years"] * edad
-    for i, nombre in enumerate(PHENOAGE_BIOMARKERS):
-        coef = _COEF[_FORMULA_KEY[nombre]]
-        if nombre == "hs_CRP":
-            xb = xb + coef * (np.log(state[i]) + _LN_CRP_OFFSET)
-        else:
-            xb = xb + coef * (_ESCALA[nombre] * state[i])
-
-    ln_1_menos_mortalidad = (_MORTALITY_SCALE * np.exp(xb)) / _GAMMA
-    return np.log(_BA_SCALE * ln_1_menos_mortalidad) / _BA_EXPONENT + _BA_INTERCEPT
-
-
-# --- La simulación ------------------------------------------------------------
-
+Brechas = Mapping[str, float | None]
 
 class ScenarioResult(NamedTuple):
     escenario: str
     nombre: str
-    #: Percentiles al horizonte (año `anios`). Se conservan como campos planos
-    #: porque son lo que la app usa para rankear palancas.
+    intervenciones: tuple[str, ...]
+    esfuerzo: int
+    #: False cuando ninguna de sus palancas tiene brecha abierta para esta
+    #: persona (ya tiene el hábito): el escenario colapsa sobre la línea base.
+    aplica: bool
+    # Al horizonte (compatibilidad con la forma anterior del endpoint).
     edad_biologica_p10: float
     edad_biologica_mediana: float
     edad_biologica_p90: float
-    #: El abanico completo: un valor por año, del 0 al horizonte. `curva_*[-1]`
-    #: coincide con los tres campos de arriba.
+    # Año a año, del 0 al horizonte.
     curva_anios: list[int]
     curva_p10: list[float]
     curva_mediana: list[float]
     curva_p90: list[float]
+    # Diferencia pareada frente a la línea base, trayectoria a trayectoria.
+    anios_ganados: float
+    anios_ganados_p10: float
+    anios_ganados_p90: float
+    pct_futuros_que_mejoran: float
+    ratio_impacto_esfuerzo: float
+
+
+class ValorDeInformacion(NamedTuple):
+    nombre: str
+    #: Cuánto se angosta (años) la banda P10–P90 de la línea base al horizonte
+    #: si este biomarcador imputado estuviera medido.
+    reduccion_banda_anios: float
+    #: Parte de la reducción total que aporta este biomarcador (suma 1).
+    fraccion: float
+
+
+class MontecarloResult(NamedTuple):
+    escenarios: list[ScenarioResult]
+    campos_inferidos: list[str]
+    muestra_trayectorias: list[list[float]]
+    valor_de_informacion: list[ValorDeInformacion]
+    contribuciones_habitos: list[dict[str, object]]
+    semilla: int
+    n_trayectorias: int
+    anios: int
+    #: P90 − P10 de la edad biológica HOY (año 0): 0 si los 9 están medidos;
+    #: la incertidumbre de lo imputado si no.
+    ancho_banda_hoy: float
 
 
 def _bounds(nombre: str) -> tuple[float, float]:
@@ -134,83 +122,187 @@ def _bounds(nombre: str) -> tuple[float, float]:
     return spec.valor_min, spec.valor_max
 
 
-def _sigma(nombre: str, imputados: set[str]) -> float:
-    """Ruido anual del biomarcador, ensanchado si el punto de partida fue
-    inferido de la tabla de medianas en vez de medido."""
-    sd = DYNAMICS[nombre].ruido_anual_sd
-    return sd * SIGMA_IMPUTADO_FACTOR if nombre in imputados else sd
+def _phenoage(state: np.ndarray, edad: float) -> np.ndarray:
+    return phenoage_years_vector(
+        {nombre: state[i] for i, nombre in enumerate(PHENOAGE_BIOMARKERS)}, edad
+    )
 
 
-class MontecarloRun(NamedTuple):
-    resultados: list[ScenarioResult]
-    imputados: list[str]
-    #: What was actually simulated, after the MAX_TRAYECTORIAS/MAX_ANIOS
-    #: clamp — the router echoes these back rather than reapplying the same
-    #: clamp itself, so the two can't drift apart if either constant changes.
-    n_trayectorias: int
-    anios: int
-
-
-def _simulate_scenario(
-    valores_iniciales: dict[str, float],
+def _trayectorias(
+    start: np.ndarray,
+    ruido: np.ndarray,
+    respuesta: Mapping[str, np.ndarray],
     edad_inicial: float,
-    escenario_key: str,
-    n_trayectorias: int,
+    escenario: str,
+    brechas: Brechas | None,
     anios: int,
-    rng: np.random.Generator,
-    imputados: set[str],
-) -> ScenarioResult:
-    scenario = SCENARIOS[escenario_key]
+) -> np.ndarray:
+    """PhenoAge de cada trayectoria en cada año: forma (anios + 1, n).
 
-    # One row per biomarker, one column per trajectory — evolved together so
-    # every trajectory's noise draw is independent of every other trajectory's.
-    # dtype=float is load-bearing, not decoration: if every starting value
-    # happens to be a whole number numpy infers int64, and then each
-    # `state[i] = state[i] + deriva + ruido` silently truncates back to int.
-    # The fractional drifts (creatinina +0.005/yr) vanish, hs_CRP walks down
-    # to 0 past its own clip floor, and the formula's log(0) takes the
-    # endpoint down with a 500.
-    state = np.array(
-        [[valores_iniciales[nombre]] * n_trayectorias for nombre in PHENOAGE_BIOMARKERS],
-        dtype=float,
-    )  # shape (9, n_trayectorias)
-
-    # Same drift rule as the deterministic Capa 2 stepper — one source of truth
-    # in `evolution`, plus this layer's noise on top. Resolved once per
-    # scenario, not once per year: it doesn't depend on the year.
-    derivas = [deriva_total(nombre, [escenario_key]) for nombre in PHENOAGE_BIOMARKERS]
-    sigmas = [_sigma(nombre, imputados) for nombre in PHENOAGE_BIOMARKERS]
-
-    # (anios + 1, n_trayectorias): la edad biológica de cada trayectoria en
-    # cada año, incluido el año 0. Medir antes de evolucionar es lo que hace
-    # que la fila 0 sea el estado de partida y no un año ya derivado.
-    edades = np.empty((anios + 1, n_trayectorias))
-    for t in range(anios + 1):
-        edades[t] = _phenoage_vector(state, edad_inicial + t)
-        if t == anios:
-            break
-
-        for i in range(len(PHENOAGE_BIOMARKERS)):
-            ruido = rng.normal(0.0, sigmas[i], size=n_trayectorias)
-            state[i] = state[i] + derivas[i] + ruido
-
-        # Clamp after each year, not just at the end: an unclamped random walk
-        # can wander a biomarker (e.g. leucocitos) negative mid-simulation and
-        # never recover, which would poison every later year for that path.
+    `start` (9, n) es el estado de arranque (medidos fijos, imputados
+    muestreados); `ruido` (anios, 9, n) los choques anuales, ya escalados por
+    `ruido_anual_sd`; `respuesta[palanca]` (n,) el multiplicador de respuesta
+    individual a cada palanca. Los tres se comparten entre escenarios: eso es
+    lo que deja las trayectorias pareadas.
+    """
+    state = start.copy()
+    n = start.shape[1]
+    out = np.empty((anios + 1, n))
+    out[0] = _phenoage(state, edad_inicial)
+    # Same drift rule as the deterministic Capa 2 stepper — one source of
+    # truth in `evolution` (`deriva_natural` + `ajuste_habitos` +
+    # `efectos_palancas` × `factor_combinacion`, × `escala` for the relative
+    # biomarkers), plus this layer's noise and per-trajectory response
+    # multiplier on top.
+    naturales: list[float] = []
+    relativas: list[np.ndarray] = []  # parte que se escala al valor actual (PCR)
+    for nombre in PHENOAGE_BIOMARKERS:
+        rel = np.full(n, ajuste_habitos(nombre, brechas))
+        efectos = efectos_palancas(nombre, [escenario], brechas)
+        if efectos:
+            factor = factor_combinacion(len(efectos))
+            for palanca, efecto in efectos:
+                rel = rel + respuesta[palanca] * (efecto * factor)
+        naturales.append(deriva_natural(nombre))
+        relativas.append(rel)
+    for year in range(anios):
         for i, nombre in enumerate(PHENOAGE_BIOMARKERS):
-            state[i] = np.clip(state[i], *_bounds(nombre))
+            if nombre in EFECTO_RELATIVO_A:
+                state[i] += naturales[i] + relativas[i] * (state[i] / EFECTO_RELATIVO_A[nombre]) + ruido[year, i]
+            else:
+                state[i] += naturales[i] + relativas[i] + ruido[year, i]
+            # Clamp after each year, not just at the end: an unclamped random
+            # walk can wander a biomarker (e.g. leucocitos) negative
+            # mid-simulation and never recover, which would poison every later
+            # year for that path.
+            np.clip(state[i], *_bounds(nombre), out=state[i])
+        out[year + 1] = _phenoage(state, edad_inicial + year + 1)
+    return out
 
-    p10, mediana, p90 = np.percentile(edades, [10, 50, 90], axis=1)
-    return ScenarioResult(
-        escenario=escenario_key,
-        nombre=scenario.nombre,
-        edad_biologica_p10=float(p10[-1]),
-        edad_biologica_mediana=float(mediana[-1]),
-        edad_biologica_p90=float(p90[-1]),
-        curva_anios=list(range(anios + 1)),
-        curva_p10=[float(v) for v in p10],
-        curva_mediana=[float(v) for v in mediana],
-        curva_p90=[float(v) for v in p90],
+
+def _percentiles(matriz: np.ndarray) -> tuple[list[float], list[float], list[float]]:
+    p10, p50, p90 = np.percentile(matriz, [10, 50, 90], axis=1)
+    return p10.tolist(), p50.tolist(), p90.tolist()
+
+
+def simular(
+    biomarcadores: dict[str, float],
+    edad: float,
+    sexo_biologico: str | None,
+    escenarios: Iterable[str],
+    n_trayectorias: int = DEFAULT_TRAYECTORIAS,
+    anios: int = DEFAULT_ANIOS,
+    seed: int | None = None,
+    brechas: Brechas | None = None,
+    muestra: int = MUESTRA_TRAYECTORIAS,
+    valor_de_informacion: bool = True,
+) -> MontecarloResult:
+    """Run every scenario in `escenarios` from the same starting point and the
+    same noise, so they are directly comparable trajectory by trajectory.
+
+    `brechas` (ver `interventions.brechas_desde_habitos`) es lo que hace al
+    gemelo personal: hábitos actuales en la línea base y palancas escaladas
+    por la brecha que les queda. `None` = modo legado sin hábitos.
+    """
+    escenarios = list(escenarios)
+    for key in escenarios:
+        expandir(key)  # ValueError temprano si alguna clave no es válida
+    valores_iniciales, imputados = impute_missing(biomarcadores, edad, sexo_biologico)
+
+    n = min(n_trayectorias, MAX_TRAYECTORIAS)
+    a = min(anios, MAX_ANIOS)
+    semilla = DEFAULT_SEED if seed is None else int(seed)
+    rng = np.random.default_rng(semilla)
+
+    # Estado de arranque: una columna por trayectoria. dtype float es
+    # deliberado (con enteros numpy truncaría las derivas fraccionarias).
+    start = np.empty((len(PHENOAGE_BIOMARKERS), n), dtype=float)
+    for i, nombre in enumerate(PHENOAGE_BIOMARKERS):
+        if nombre in imputados:
+            muestras = sample_reference(nombre, valores_iniciales[nombre], rng, n)
+            start[i] = np.clip(muestras, *_bounds(nombre))
+        else:
+            start[i] = float(valores_iniciales[nombre])
+    sds = np.array([DYNAMICS[nombre].ruido_anual_sd for nombre in PHENOAGE_BIOMARKERS])
+    ruido = rng.normal(0.0, 1.0, size=(a, len(PHENOAGE_BIOMARKERS), n)) * sds[None, :, None]
+    # Respuesta individual a cada palanca (una por trayectoria, compartida por
+    # todos los escenarios que la incluyan): N(1, HETEROGENEIDAD) truncada en 0.
+    respuesta = {
+        palanca: np.clip(rng.normal(1.0, HETEROGENEIDAD_RESPUESTA, size=n), 0.0, None)
+        for palanca in PALANCAS
+    }
+
+    base = _trayectorias(start, ruido, respuesta, edad, "ninguna", brechas, a)
+    base_final = base[-1]
+    anios_lista = list(range(a + 1))
+
+    resultados: list[ScenarioResult] = []
+    for key in escenarios:
+        m = base if key == "ninguna" else _trayectorias(start, ruido, respuesta, edad, key, brechas, a)
+        p10, p50, p90 = _percentiles(m)
+        delta = base_final - m[-1]
+        if key == "ninguna":
+            g_p10 = g_p50 = g_p90 = 0.0
+            pct = 0.0
+        else:
+            g_p10, g_p50, g_p90 = (float(x) for x in np.percentile(delta, [10, 50, 90]))
+            pct = float(np.mean(delta > 0.0) * 100.0)
+        esfuerzo = esfuerzo_de(key)
+        resultados.append(
+            ScenarioResult(
+                escenario=key,
+                nombre=etiqueta_de(key),
+                intervenciones=expandir(key),
+                esfuerzo=esfuerzo,
+                aplica=aplica(key, brechas),
+                edad_biologica_p10=p10[-1],
+                edad_biologica_mediana=p50[-1],
+                edad_biologica_p90=p90[-1],
+                curva_anios=anios_lista,
+                curva_p10=p10,
+                curva_mediana=p50,
+                curva_p90=p90,
+                anios_ganados=g_p50,
+                anios_ganados_p10=g_p10,
+                anios_ganados_p90=g_p90,
+                pct_futuros_que_mejoran=pct,
+                ratio_impacto_esfuerzo=(g_p50 / esfuerzo) if esfuerzo else 0.0,
+            )
+        )
+
+    # Valor de información: la banda de la línea base si cada imputado
+    # estuviera medido (fijo en su mediana), con la MISMA semilla.
+    voi: list[ValorDeInformacion] = []
+    if valor_de_informacion and imputados:
+        ancho_todo = float(np.percentile(base_final, 90) - np.percentile(base_final, 10))
+        reducciones: list[tuple[str, float]] = []
+        for nombre in imputados:
+            fijo = start.copy()
+            fijo[PHENOAGE_BIOMARKERS.index(nombre)] = float(valores_iniciales[nombre])
+            final = _trayectorias(fijo, ruido, respuesta, edad, "ninguna", brechas, a)[-1]
+            ancho = float(np.percentile(final, 90) - np.percentile(final, 10))
+            reducciones.append((nombre, max(0.0, ancho_todo - ancho)))
+        total = sum(r for _, r in reducciones)
+        voi = sorted(
+            (
+                ValorDeInformacion(nombre, red, (red / total) if total > 0 else 0.0)
+                for nombre, red in reducciones
+            ),
+            key=lambda v: v.reduccion_banda_anios,
+            reverse=True,
+        )
+
+    hoy_p10, hoy_p90 = np.percentile(base[0], [10, 90])
+    return MontecarloResult(
+        escenarios=resultados,
+        campos_inferidos=imputados,
+        muestra_trayectorias=base[:, : max(0, min(muestra, n))].T.tolist(),
+        valor_de_informacion=voi,
+        contribuciones_habitos=contribuciones_habitos(valores_iniciales, edad, brechas, a),
+        semilla=semilla,
+        n_trayectorias=n,
+        anios=a,
+        ancho_banda_hoy=float(hoy_p90 - hoy_p10),
     )
 
 
@@ -222,19 +314,13 @@ def run(
     n_trayectorias: int = DEFAULT_TRAYECTORIAS,
     anios: int = DEFAULT_ANIOS,
     seed: int | None = None,
-) -> MontecarloRun:
-    """Run every scenario in `escenarios` from the same starting point, so
-    they are directly comparable. Returns the per-scenario distributions plus
-    the list of biomarkers that had to be imputed to get a starting point —
-    which is also what widens the band, see `SIGMA_IMPUTADO_FACTOR`."""
-    valores_iniciales, imputados = impute_missing(biomarcadores, edad, sexo_biologico)
-
-    n = min(n_trayectorias, MAX_TRAYECTORIAS)
-    a = min(anios, MAX_ANIOS)
-    rng = np.random.default_rng(seed)
-
-    resultados = [
-        _simulate_scenario(valores_iniciales, edad, key, n, a, rng, set(imputados))
-        for key in escenarios
-    ]
-    return MontecarloRun(resultados=resultados, imputados=imputados, n_trayectorias=n, anios=a)
+    brechas: Brechas | None = None,
+) -> tuple[list[ScenarioResult], list[str]]:
+    """Compatibilidad: la firma anterior. Devuelve (resultados por escenario,
+    biomarcadores imputados). `simular()` trae además curvas, muestra, valor
+    de información y contribuciones de hábitos."""
+    r = simular(
+        biomarcadores, edad, sexo_biologico, escenarios, n_trayectorias, anios, seed, brechas,
+        valor_de_informacion=False,
+    )
+    return r.escenarios, r.campos_inferidos

@@ -11,6 +11,9 @@ asyncpg>=0.30
 argon2-cffi>=23.1
 # Vectorized biomarker random walk in the Monte Carlo simulation.
 numpy>=2.0
+# Reporte de salud descargable (POST /me/health-context/reporte.pdf): PDF en
+# memoria con la paleta/tipografía de la app (fuentes TTF en app/report/fonts).
+reportlab>=4.2
 # The health-context chat agent (POST /me/health-context/chat).
 anthropic>=1.0
 # Multipart form parsing — required by FastAPI's UploadFile/File().

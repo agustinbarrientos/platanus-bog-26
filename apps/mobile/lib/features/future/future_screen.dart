@@ -58,6 +58,8 @@ class _FutureBody extends StatelessWidget {
         ],
         _WhySection(r: r).stagger(5),
         const SizedBox(height: Sp.stackSection),
+        const _ReportCard().stagger(6),
+        const SizedBox(height: Sp.stackSection),
         _PopulationCard(r: r).stagger(6),
         const SizedBox(height: Sp.stackCard),
         _UncertaintyNotice(r: r).stagger(7),
@@ -83,21 +85,22 @@ class _Header extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Expanded(child: Text('Tu futuro', style: t.headlineLarge)),
-            // Entrada al chat con la mascota (tiene los datos a la mano).
+            // Entrada discreta a "Respaldo" (de dónde sale cada número). El
+            // chat "Pregúntame" vive en el bottom nav, que es el protagonista.
             Material(
-              color: MoiraiColors.blueSoft,
-              shape: const StadiumBorder(),
+              color: MoiraiColors.surface,
+              shape: const StadiumBorder(side: BorderSide(color: MoiraiColors.line)),
               clipBehavior: Clip.antiAlias,
               child: InkWell(
-                onTap: () => context.push(Routes.chat),
+                onTap: () => context.push(Routes.backing),
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(12, 8, 14, 8),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.chat_bubble_outline_rounded, size: 16, color: MoiraiColors.blueInk),
+                      const Icon(Icons.verified_outlined, size: 16, color: MoiraiColors.ink2),
                       const SizedBox(width: 6),
-                      Text('Pregúntame', style: t.labelMedium!.copyWith(color: MoiraiColors.blueInk, fontWeight: FontWeight.w800)),
+                      Text('Respaldo', style: t.labelMedium!.copyWith(color: MoiraiColors.ink2, fontWeight: FontWeight.w700)),
                     ],
                   ),
                 ),
@@ -152,6 +155,13 @@ class _HeroCard extends StatelessWidget {
           ),
           const SizedBox(height: Sp.x4),
           _DeltaBadge(delta: r.delta),
+          if (r.anchoBandaHoy > 0 && r.baseline.p10.isNotEmpty && r.baseline.p90.isNotEmpty) ...[
+            const SizedBox(height: Sp.x3),
+            Text(
+              'Con lo que me falta medir, hoy podrías estar ${Fmt.rango(r.baseline.p10.first, r.baseline.p90.first)}.',
+              style: t.bodySmall!.copyWith(color: MoiraiColors.blueInk),
+            ),
+          ],
           const SizedBox(height: Sp.x4),
           Text(
             'PhenoAge (Levine 2018) a partir de tus biomarcadores. Es una medida de hoy, no una predicción.',
@@ -250,7 +260,9 @@ class _ProjectionCard extends StatelessWidget {
               ),
               const SizedBox(height: Sp.x3),
               Text(
-                'Curva interpolada entre hoy y el año $horizonte a partir de ${Fmt.entero(5000)} trayectorias; las líneas finas son ilustrativas.',
+                r.curvasDelMotor
+                    ? 'Banda P10–P90 año a año de ${Fmt.entero(5000)} trayectorias pareadas; las líneas finas son ${Fmt.entero(r.muestraTrayectorias.length)} de ellas, reales.'
+                    : 'Curva interpolada entre hoy y el año $horizonte a partir de ${Fmt.entero(5000)} trayectorias; las líneas finas son ilustrativas.',
                 style: t.bodySmall!.copyWith(color: MoiraiColors.ink3),
               ),
               const SizedBox(height: Sp.x4),
@@ -269,24 +281,63 @@ class _ProjectionCard extends StatelessWidget {
   }
 }
 
-// ── Lo que puedes mover (top 2) ──────────────────────────────────────────
-class _LeversSection extends StatelessWidget {
+// ── Tu reporte para el médico ────────────────────────────────────────────
+class _ReportCard extends StatelessWidget {
+  const _ReportCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    return MoCard(
+      onTap: () => context.push(Routes.report),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const MoIconTile(Icons.picture_as_pdf_rounded),
+          const SizedBox(width: Sp.x4),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Tu reporte para el médico', style: t.titleMedium),
+                const SizedBox(height: 4),
+                Text(
+                  'Tu foto de hoy con rangos de referencia, los ejes de tu sistema, más recomendaciones con su respaldo y con quién conviene consultar. Descárgalo en PDF y llévalo a tu consulta.',
+                  style: t.bodySmall,
+                ),
+                const SizedBox(height: 6),
+                Text('Orienta, no diagnostica.', style: t.labelMedium!.copyWith(color: MoiraiColors.ink3)),
+              ],
+            ),
+          ),
+          const SizedBox(width: Sp.x3),
+          const Icon(Icons.chevron_right_rounded, color: MoiraiColors.ink3),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Lo que puedes mover (top 3) ──────────────────────────────────────────
+class _LeversSection extends ConsumerWidget {
   const _LeversSection({required this.r});
   final SimulacionResultado r;
 
   @override
-  Widget build(BuildContext context) {
-    final top = r.escenarios.take(2).toList();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final top = r.escenarios.take(3).toList();
+    final objetivos = ref.watch(onboardingProvider).objetivos;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const MoSectionTitle('Lo que puedes mover', subtitle: 'Ordenadas por años ganados por unidad de esfuerzo. Toca una para ver los futuros pareados.'),
+        const MoSectionTitle('Lo que puedes mover', subtitle: 'Solo las palancas que aplican a tus hábitos, ordenadas por años ganados por unidad de esfuerzo. Toca una para ver los futuros pareados.'),
         const SizedBox(height: Sp.x5),
         for (var i = 0; i < top.length; i++) ...[
           LeverCard(
             escenario: top[i],
             destacada: i == 0,
             rank: i + 1,
+            objetivos: objetivos,
             onTap: () => context.go(Routes.leverDetail(i)),
           ).stagger(i, base: const Duration(milliseconds: 120)),
           if (i < top.length - 1) const SizedBox(height: Sp.x4),
@@ -353,7 +404,7 @@ class _WhySection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const MoSectionTitle('Por qué', subtitle: 'Qué pesa en tu edad biológica de hoy, de mayor a menor.'),
+        const MoSectionTitle('Por qué', subtitle: 'Qué pesa: tus biomarcadores hoy y tus hábitos a 10 años, de mayor a menor.'),
         const SizedBox(height: Sp.x5),
         MoCard(
           child: Column(
@@ -379,7 +430,7 @@ class _WhySection extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: Sp.x3),
-              Text('Contribuciones aproximadas: qué mueve más tu edad biológica hoy.', style: t.bodySmall),
+              Text('Biomarcadores: años frente a la mediana de tu edad y sexo, hoy. Hábitos: años a 10 años frente a tenerlos al revés.', style: t.bodySmall),
               if (drivers.isNotEmpty)
                 Align(
                   alignment: Alignment.centerRight,
@@ -418,7 +469,8 @@ class _ShapRow extends StatelessWidget {
     final mejora = driver.direccion == 'mejora';
     final color = mejora ? MoiraiColors.green : MoiraiColors.amber;
     final ink = mejora ? MoiraiColors.greenInk : MoiraiColors.amberInk;
-    final nombre = _capital(MockEngine.nombreVariable(driver.variable));
+    const habitos = {'tabaco', 'actividad', 'alimentacion', 'sueno', 'sueno_h', 'estres', 'alcohol', 'ejercicio'};
+    final nombre = _capital(MockEngine.nombreVariable(driver.variable)) + (habitos.contains(driver.variable) ? ' · a 10 años' : '');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

@@ -6,6 +6,8 @@
 	<true/>
 		<key>NSCameraUsageDescription</key>
 	<string>Moirai usa la cámara para leer los valores de tus exámenes y, si quieres, guardar tu foto.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Moirai usa el micrófono para escuchar tus preguntas y responderte.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Moirai accede a tus fotos para leer un examen o elegir tu foto de perfil.</string>
 	<key>NSHealthShareUsageDescription</key>

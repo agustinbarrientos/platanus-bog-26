@@ -72,7 +72,7 @@ class FutureEmptyState extends ConsumerWidget {
           ).stagger(4),
           Center(
             child: TextButton.icon(
-              onPressed: () => context.push(Routes.chat),
+              onPressed: () => context.go(Routes.preguntame),
               icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
               label: const Text('Pregúntale a Moirai'),
             ),

@@ -35,8 +35,11 @@ _BACKING_DART = (
 )
 
 #: Escenarios que la pantalla no lista. `ninguna` no es una palanca: su deriva
-#: se muestra en la tabla de línea base, no como intervención.
-_NO_LISTADOS = {"ninguna"}
+#: se muestra en la tabla de línea base, no como intervención. `combinada` es
+#: el compuesto precocinado que quedó de antes: el motor ya arma las
+#: combinaciones de 2–3 palancas él mismo y solo expone las sueltas
+#: (`PALANCAS`) en `/engine/catalogo`, así que la app lista esas y no este.
+_NO_LISTADOS = {"ninguna", "combinada"}
 
 
 def _fuente() -> str:

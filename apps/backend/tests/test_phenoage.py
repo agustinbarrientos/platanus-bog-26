@@ -257,3 +257,93 @@ def test_extrapolacion_fuera_del_rango_de_ajuste():
     assert compute(PERFIL_MEJOR_CASO, 40, "M").aceleracion < -20
     # Y el peor caso a los 40 se va por encima de 130.
     assert compute(PERFIL_PEOR_CASO, 40, "M").edad_biologica > 130
+
+
+# --- Tabla de referencia, percentil, contribuciones, versión vectorizada ------------
+
+from app.health_metrics.nhanes_reference import BRACKET_MIDPOINTS, _MEDIANS, reference_person  # noqa: E402
+from app.health_metrics.phenoage import (  # noqa: E402
+    aceleracion_referencia,
+    percentil_poblacional,
+    phenoage_years_vector,
+    sd_poblacional,
+)
+import numpy as np  # noqa: E402
+
+
+def test_la_persona_de_referencia_marca_su_edad():
+    """Criterio de calibración de `nhanes_reference._MEDIANS` (ver su nota):
+    los 9 valores en la mediana de cada tramo y sexo dan PhenoAge ≈ edad
+    cronológica (±2,2 años en todo el tramo), con las mujeres ~1 año por
+    debajo de los hombres. Antes marcaban 5–8 años menos a los 20–45."""
+    bordes = {"<30": (20, 29), "30-44": (30, 44), "45-59": (45, 59), "60-74": (60, 74), "75+": (75, 88)}
+    acel_f, acel_m = [], []
+    for tramo, edad_media in BRACKET_MIDPOINTS.items():
+        for sexo in ("F", "M"):
+            for edad in (bordes[tramo][0], edad_media, bordes[tramo][1]):
+                a = aceleracion_referencia(edad, sexo)
+                assert abs(a) <= 2.2, (tramo, sexo, edad, a)
+                (acel_f if sexo == "F" else acel_m).append(a)
+    assert sum(acel_f) / len(acel_f) < sum(acel_m) / len(acel_m)
+    assert abs(sum(acel_f) / len(acel_f)) < 1.5 and abs(sum(acel_m) / len(acel_m)) < 1.5
+
+
+def test_las_medianas_son_plausibles_y_monotonas_con_la_edad():
+    tramos = list(BRACKET_MIDPOINTS)
+    for sexo in ("F", "M"):
+        serie = lambda n: [_MEDIANS[t][sexo][n] for t in tramos]  # noqa: E731
+        for n in ("hs_CRP", "glucosa", "creatinina", "fosfatasa_alcalina", "vcm", "rdw"):
+            assert serie(n) == sorted(serie(n)), (sexo, n)  # suben con la edad
+        for n in ("albumina", "linfocitos_pct"):
+            assert serie(n) == sorted(serie(n), reverse=True), (sexo, n)  # bajan
+    # Rangos clínicos gruesos.
+    for t in tramos:
+        for sexo in ("F", "M"):
+            v = _MEDIANS[t][sexo]
+            assert 1.0 <= v["hs_CRP"] <= 3.5 and 85 <= v["glucosa"] <= 110 and 3.8 <= v["albumina"] <= 4.6
+            assert 0.7 <= v["creatinina"] <= 1.3 and 60 <= v["fosfatasa_alcalina"] <= 100
+            assert 24 <= v["linfocitos_pct"] <= 36 and 88 <= v["vcm"] <= 95 and 12.5 <= v["rdw"] <= 14.5
+            assert 6.0 <= v["leucocitos"] <= 8.0
+
+
+def test_percentil_de_la_referencia_es_50_y_es_monotono():
+    for edad in (25, 40, 60, 80):
+        for sexo in ("F", "M"):
+            ref = aceleracion_referencia(edad, sexo)
+            assert percentil_poblacional(ref, edad, sexo) == pytest.approx(50.0, abs=0.6)
+            assert percentil_poblacional(ref - 5, edad, sexo) < 25 < 75 < percentil_poblacional(ref + 5, edad, sexo)
+            assert 3.5 <= sd_poblacional(edad, sexo) <= 7.0
+    # Y `compute()` lo expone con la misma lógica.
+    r = compute({}, 40, "F")
+    assert r.percentil_poblacional == pytest.approx(50.0, abs=0.6)
+    assert r.aceleracion == pytest.approx(r.aceleracion_referencia)
+    assert all(v == 0.0 for v in r.contribuciones.values())  # todo imputado → nada que explicar
+
+
+def test_contribuciones_suman_la_aceleracion_frente_a_la_referencia():
+    """PhenoAge es afín en un índice aditivo, así que las contribuciones por
+    biomarcador (valor real vs mediana de referencia) suman exactamente la
+    distancia a la referencia. Los imputados valen 0."""
+    r = compute(PERFIL_SPEC_9, EDAD_SPEC_9, "F")
+    assert set(r.contribuciones) == set(r.valores_usados)
+    for n in r.campos_inferidos:
+        assert r.contribuciones[n] == 0.0
+    assert sum(r.contribuciones.values()) == pytest.approx(r.aceleracion - r.aceleracion_referencia, abs=1e-6)
+    # Signos: RDW 13,1 < mediana (13,5) rejuvenece; un RDW alto envejece.
+    assert r.contribuciones["rdw"] < 0
+    peor = compute({**PERFIL_SPEC_9, "rdw": 15.0}, EDAD_SPEC_9, "F")
+    assert peor.contribuciones["rdw"] > 0
+
+
+def test_version_vectorizada_coincide_con_la_escalar():
+    rng = np.random.default_rng(0)
+    ref = reference_person(40, "M")
+    n = 50
+    valores = {
+        nombre: np.clip(ref[nombre] * np.exp(rng.normal(0, 0.2, n)), 0.1, None)
+        for nombre in ref
+    }
+    vec = phenoage_years_vector(valores, 40)
+    for i in range(n):
+        esc = phenoage_years(to_formula_units({k: float(v[i]) for k, v in valores.items()}), 40)
+        assert vec[i] == pytest.approx(esc, abs=1e-9)

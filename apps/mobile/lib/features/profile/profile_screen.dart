@@ -36,6 +36,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   String? _syncResumen;
   bool _habitosCambiados = false;
   bool _borrando = false;
+  bool _cerrando = false;
   String? _aviso;
 
   static final _fecha = DateFormat('d MMM yyyy', 'es_CO');
@@ -57,7 +58,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         _Header(me: me, ob: ob, email: email, onFoto: _cambiarFoto, onRetry: () => ref.invalidate(meProvider)),
         const SizedBox(height: Sp.stackSection),
 
-        s(_PreguntaleCard(onTap: () => context.push(Routes.chat))),
+        s(_PreguntaleCard(onTap: () => context.go(Routes.preguntame))),
+        const SizedBox(height: Sp.stackCard),
+
+        s(_ReporteCard(onTap: () => context.push(Routes.report))),
+        const SizedBox(height: Sp.stackCard),
+
+        s(_ExplicacionCard(ob: ob, onUpdate: (fn) => ref.read(onboardingProvider.notifier).update(fn))),
         const SizedBox(height: Sp.stackCard),
 
         s(_DatosBasicosCard(me: me, onRetry: () => ref.invalidate(meProvider))),
@@ -103,9 +110,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           const SizedBox(height: Sp.stackCard),
         ],
         s(OutlinedButton.icon(
-          onPressed: _cerrarSesion,
+          onPressed: _cerrando ? null : _cerrarSesion,
           icon: const Icon(Icons.logout_rounded, size: 20),
-          label: const Text('Cerrar sesión'),
+          label: Text(_cerrando ? 'Cerrando sesión…' : 'Cerrar sesión'),
         )),
         const SizedBox(height: Sp.x3),
         s(OutlinedButton.icon(
@@ -196,10 +203,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _cerrarSesion() async {
+    if (_cerrando) return;
+    setState(() {
+      _cerrando = true;
+      _aviso = null;
+    });
     try {
+      // Borra la sesión local de inmediato (el router redirige solo); la
+      // revocación en el backend corre en segundo plano.
       await ref.read(authRepositoryProvider).signOut();
     } catch (_) {
       if (mounted) setState(() => _aviso = 'No pude cerrar la sesión. Intenta de nuevo.');
+    } finally {
+      if (mounted) setState(() => _cerrando = false);
     }
   }
 
@@ -368,6 +384,40 @@ class _ColdStartNoticeState extends State<_ColdStartNotice> {
   }
 }
 
+// ── Tu reporte para el médico ────────────────────────────────────────────
+
+class _ReporteCard extends StatelessWidget {
+  const _ReporteCard({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    return MoCard(
+      onTap: onTap,
+      padding: const EdgeInsets.fromLTRB(Sp.x4, Sp.x4, Sp.gutter, Sp.x4),
+      child: Row(
+        children: [
+          const MoIconTile(Icons.picture_as_pdf_rounded),
+          const SizedBox(width: Sp.x4),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Tu reporte para el médico', style: t.titleMedium),
+                const SizedBox(height: 2),
+                Text('Foto de hoy, ejes, recomendaciones y con quién consultar. En PDF, para llevar a la consulta.', style: t.bodySmall),
+              ],
+            ),
+          ),
+          const SizedBox(width: Sp.x2),
+          const Icon(Icons.chevron_right_rounded, color: MoiraiColors.ink3),
+        ],
+      ),
+    );
+  }
+}
+
 // ── Pregúntale a Moirai ──────────────────────────────────────────────────
 
 class _PreguntaleCard extends StatelessWidget {
@@ -464,6 +514,46 @@ class _DatosBasicosCard extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+// ── Cómo te explico ──────────────────────────────────────────────────────
+
+/// El registro del chat (`perfil_conocimiento`): sencillo siempre; esto solo
+/// decide cuánto vocabulario doy por sabido. Se aplica desde el siguiente
+/// mensaje, sin volver a simular.
+class _ExplicacionCard extends StatelessWidget {
+  const _ExplicacionCard({required this.ob, required this.onUpdate});
+  final OnboardingData ob;
+  final Future<void> Function(OnboardingData Function(OnboardingData)) onUpdate;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    final v = ob.perfilConocimiento;
+    return ProfileCard(
+      title: 'Cómo te explico',
+      subtitle: 'Hablo sencillo siempre; técnico solo si me lo pides.',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          HabitRow(
+            icon: Icons.forum_outlined,
+            label: '¿Qué tanto sabes de salud?',
+            value: Catalogos.perfilConocimiento[v] ?? 'Sin dato',
+            editor: MoChoiceGroup<String>(
+              options: Catalogos.perfilConocimiento,
+              value: v,
+              onChanged: (p) => onUpdate((o) => o.copyWith(perfilConocimiento: p)),
+            ),
+          ),
+          if (v != null) ...[
+            const SizedBox(height: Sp.x3),
+            Text(Catalogos.perfilConocimientoDetalle[v] ?? '', style: t.bodySmall),
+          ],
+        ],
+      ),
     );
   }
 }

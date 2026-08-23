@@ -4,18 +4,23 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/env.dart';
 import '../data/api/api_client.dart';
 import '../data/api/token_store.dart';
 import '../data/models/biomarcador.dart';
 import '../data/models/me.dart';
 import '../data/models/onboarding.dart';
+import '../data/models/reporte.dart';
 import '../data/models/simulacion.dart';
+import '../data/models/voz.dart';
 import '../data/repositories/auth_repository.dart';
 import '../data/repositories/chat_repository.dart';
 import '../data/repositories/demo_data.dart';
 import '../data/repositories/exams_repository.dart';
 import '../data/repositories/profile_repository.dart';
+import '../data/repositories/report_repository.dart';
 import '../data/repositories/simulation_repository.dart';
+import '../data/repositories/voice_repository.dart';
 import '../data/repositories/wearables_repository.dart';
 
 // ── Infraestructura ──────────────────────────────────────────────────────
@@ -35,6 +40,58 @@ final examsRepositoryProvider = Provider((ref) => ExamsRepository(ref.watch(apiC
 final simulationRepositoryProvider = Provider((ref) => SimulationRepository(ref.watch(apiClientProvider), ref.watch(sharedPrefsProvider)));
 final wearablesRepositoryProvider = Provider((ref) => WearablesRepository(ref.watch(apiClientProvider)));
 final chatRepositoryProvider = Provider((ref) => ChatRepository(ref.watch(apiClientProvider)));
+final reportRepositoryProvider = Provider((ref) => ReportRepository(ref.watch(apiClientProvider)));
+final voiceRepositoryProvider = Provider((ref) => VoiceRepository(ref.watch(apiClientProvider)));
+
+// ── Voz ──────────────────────────────────────────────────────────────────
+/// `GET /me/voice/estado`, una vez por sesión. Nunca falla: sin red o contra
+/// un backend viejo devuelve [EstadoVoz.nula] y la app usa la voz del
+/// dispositivo. Se mantiene vivo (`keepAlive`) porque la respuesta no cambia
+/// mientras la app está abierta.
+final estadoVozProvider = FutureProvider<EstadoVoz>((ref) async {
+  ref.keepAlive();
+  if (Env.useMockEngine) return EstadoVoz.nula;
+  return ref.watch(voiceRepositoryProvider).estado();
+});
+
+/// Lectura síncrona del anterior, para decidir en caliente si vale la pena
+/// pedirle audio al backend. Mientras carga asume que no: el primer toque
+/// del altavoz usa la voz del dispositivo en vez de quedarse esperando.
+final vozDisponibleProvider = Provider<bool>(
+  (ref) => ref.watch(estadoVozProvider).maybeWhen(data: (e) => e.disponible, orElse: () => false),
+);
+
+/// "Leer las respuestas en voz alta" — preferencia de la persona, no default.
+/// Empieza apagado: nadie quiere que su teléfono se ponga a hablar de su
+/// salud en voz alta sin haberlo pedido.
+class LecturaEnVozAltaNotifier extends Notifier<bool> {
+  static const _clave = 'moirai.voz.lectura_automatica';
+
+  @override
+  bool build() => ref.watch(sharedPrefsProvider).getBool(_clave) ?? false;
+
+  Future<void> alternar() async {
+    final nuevo = !state;
+    state = nuevo;
+    await ref.read(sharedPrefsProvider).setBool(_clave, nuevo);
+  }
+}
+
+final lecturaEnVozAltaProvider = NotifierProvider<LecturaEnVozAltaNotifier, bool>(LecturaEnVozAltaNotifier.new);
+
+/// `GET /engine/catalogo`: las constantes del motor (biomarcadores, deriva y
+/// ruido, palancas con efectos/esfuerzo/hábito, reglas de combinación) para
+/// que "Respaldo" muestre exactamente lo que corre el servidor. Público (sin
+/// token). `null` si no hay red o el backend es viejo: la pantalla cae a su
+/// copia local y lo dice.
+final engineCatalogProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
+  try {
+    final j = await ref.watch(apiClientProvider).get('/engine/catalogo', auth: false);
+    return (j as Map).cast<String, dynamic>();
+  } catch (_) {
+    return null;
+  }
+});
 
 // ── Sesión ───────────────────────────────────────────────────────────────
 /// Notifica al router cuando cambia la sesión (token guardado/borrado).
@@ -267,6 +324,21 @@ final simulationProvider = NotifierProvider<SimulationNotifier, SimState>(Simula
 final ultimoResultadoProvider = Provider<SimulacionResultado?>((ref) {
   final s = ref.watch(simulationProvider);
   return s is SimDone ? s.resultado : null;
+});
+
+/// El reporte de salud orientativo (`POST /me/health-context/reporte`), para
+/// la pantalla "Tu reporte". Se vuelve a pedir cuando hay una simulación
+/// nueva (misma semilla y mismos datos ⇒ mismos números que la pantalla).
+final reporteProvider = FutureProvider.autoDispose<Reporte>((ref) async {
+  ref.watch(ultimoResultadoProvider.select((r) => r?.id));
+  ref.watch(currentUserIdProvider);
+  final link = ref.keepAlive();
+  try {
+    return await ref.watch(reportRepositoryProvider).obtener();
+  } catch (_) {
+    link.close(); // un fallo no se cachea: el próximo intento vuelve a pedir
+    rethrow;
+  }
 });
 
 final historialProvider = Provider<List<SimulacionResultado>>((ref) {

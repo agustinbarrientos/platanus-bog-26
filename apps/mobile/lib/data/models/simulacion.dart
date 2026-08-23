@@ -161,6 +161,26 @@ class ShapDriver {
   );
 }
 
+/// Cuánto angostaría la banda medir un biomarcador hoy imputado
+/// (`/montecarlo.valor_de_informacion`).
+class ValorDeInformacion {
+  const ValorDeInformacion({required this.nombre, required this.reduccionAnios, required this.fraccion});
+  final String nombre;
+
+  /// Años que se angosta la banda P10–P90 al horizonte si se mide.
+  final double reduccionAnios;
+
+  /// Parte de la reducción total (suma 1 entre los imputados).
+  final double fraccion;
+
+  Map<String, dynamic> toJson() => {'nombre': nombre, 'reduccion_banda_anios': reduccionAnios, 'fraccion': fraccion};
+  factory ValorDeInformacion.fromJson(Map<String, dynamic> j) => ValorDeInformacion(
+    nombre: '${j['nombre']}',
+    reduccionAnios: (j['reduccion_banda_anios'] as num?)?.toDouble() ?? 0,
+    fraccion: (j['fraccion'] as num?)?.toDouble() ?? 0,
+  );
+}
+
 /// Output de `POST /simular` — spec §8 + extensiones (API_CONTRACT.md §3).
 class SimulacionResultado {
   const SimulacionResultado({
@@ -181,6 +201,9 @@ class SimulacionResultado {
     required this.muestraTrayectorias,
     required this.catalogo,
     this.biomarcadoresUsados = const [],
+    this.valorDeInformacion = const [],
+    this.anchoBandaHoy = 0,
+    this.fuenteCurvas = 'interpolada',
   });
 
   final String id;
@@ -201,7 +224,22 @@ class SimulacionResultado {
   final List<Intervencion> catalogo;
   final List<Biomarcador> biomarcadoresUsados;
 
+  /// Qué biomarcador imputado angostaría más la banda si se midiera (del
+  /// motor). Vacío si los 9 están medidos o el backend no lo expone.
+  final List<ValorDeInformacion> valorDeInformacion;
+
+  /// P90 − P10 de la edad biológica HOY: 0 con los 9 medidos; la
+  /// incertidumbre de lo imputado si no.
+  final double anchoBandaHoy;
+
+  /// `motor` = curvas/trayectorias/años ganados reales del backend (pareados);
+  /// `interpolada` = aproximación local (backend viejo); `mock` = motor mock.
+  final String fuenteCurvas;
+
   double get delta => edadBiologicaHoy - edadCronologica;
+
+  /// ¿Las curvas y deltas salen del motor (no de una aproximación local)?
+  bool get curvasDelMotor => fuenteCurvas == 'motor' || fuenteCurvas == 'mock';
 
   Intervencion? intervencion(String id) => catalogo.where((i) => i.id == id).firstOrNull;
 
@@ -228,6 +266,9 @@ class SimulacionResultado {
     'muestra_trayectorias': muestraTrayectorias,
     'intervenciones_catalogo': catalogo.map((e) => e.toJson()).toList(),
     'biomarcadores_usados': biomarcadoresUsados.map((e) => e.toJson()).toList(),
+    'valor_de_informacion': valorDeInformacion.map((e) => e.toJson()).toList(),
+    'ancho_banda_hoy': anchoBandaHoy,
+    'fuente_curvas': fuenteCurvas,
   };
 
   /// Versión compacta para el chat (`POST /me/health-context/chat`, campo
@@ -293,6 +334,11 @@ class SimulacionResultado {
       biomarcadoresUsados: ((j['biomarcadores_usados'] as List?) ?? const [])
           .map((e) => Biomarcador.fromJson((e as Map).cast<String, dynamic>()))
           .toList(),
+      valorDeInformacion: ((j['valor_de_informacion'] as List?) ?? const [])
+          .map((e) => ValorDeInformacion.fromJson((e as Map).cast<String, dynamic>()))
+          .toList(),
+      anchoBandaHoy: (j['ancho_banda_hoy'] as num?)?.toDouble() ?? 0,
+      fuenteCurvas: '${j['fuente_curvas'] ?? 'interpolada'}',
     );
   }
 }

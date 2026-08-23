@@ -37,6 +37,7 @@ enum _Paso {
   cuerpo,
   origen,
   objetivos,
+  perfil,
   familia,
   sueno,
   ejercicio,
@@ -58,7 +59,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   static const _pasos = _Paso.values;
 
   /// Pasos con datos (el resumen no cuenta).
-  static const _datos = 13;
+  static const _datos = 14;
 
   final _page = PageController();
   int _i = 0;
@@ -225,6 +226,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   bool _valido(_Paso p, OnboardingData ob) => switch (p) {
         _Paso.origen => ob.nacionalidad != null && ob.paisResidencia != null && ob.ancestria != null,
         _Paso.objetivos => ob.objetivos.isNotEmpty,
+        _Paso.perfil => ob.perfilConocimiento != null,
         _Paso.familia => ob.historialFamiliar.isNotEmpty,
         _Paso.sueno => ob.suenoCalidad != null,
         _Paso.ejercicio => ob.ejercicio != null,
@@ -411,7 +413,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         _Paso.identidad => ('Cuéntame lo básico', 'Con tu edad y tu sexo al nacer ya puedo calibrar las primeras curvas.'),
         _Paso.cuerpo => ('Tu cuerpo, en dos números', 'Estatura y peso aproximados. No tienen que ser exactos.'),
         _Paso.origen => ('¿De dónde eres?', 'Me ayuda a elegir la población de referencia que más se parece a ti.'),
-        _Paso.objetivos => ('¿Qué te gustaría ganar?', 'Elige todo lo que aplique. Lo uso para ordenar lo que te muestro.'),
+        _Paso.objetivos => ('¿Qué te gustaría ganar?', 'Elige todo lo que aplique. Te marco las palancas que lo tocan y lo tengo en cuenta cuando te explico el resultado.'),
+        _Paso.perfil => ('¿Qué tanto sabes de salud?', 'Para explicarte como a ti te sirve. Sencillo siempre; técnico solo si me lo pides.'),
         _Paso.familia => ('Tu familia', '¿Alguien cercano ha tenido alguna de estas condiciones?'),
         _Paso.sueno => ('¿Cuánto duermes?', 'Un promedio de una semana normal está bien.'),
         _Paso.ejercicio => ('¿Cuánto te mueves?', 'Cuenta caminatas largas, deporte, gimnasio… lo que te haga sudar.'),
@@ -465,6 +468,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           ],
         _Paso.origen => const [PasoOrigen()],
         _Paso.objetivos => const [PasoObjetivos()],
+        _Paso.perfil => const [PasoPerfil()],
         _Paso.familia => const [PasoFamilia()],
         _Paso.sueno => const [PasoSueno()],
         _Paso.ejercicio => const [PasoEjercicio()],

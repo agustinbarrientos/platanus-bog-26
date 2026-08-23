@@ -9,7 +9,7 @@ import pytest
 from app.chat_rag.chunks import estimate_tokens, fmt_delta, fmt_num, fmt_rango_delta
 from app.chat_rag.documents import build_documents
 from app.chat_rag.knowledge import KNOWLEDGE
-from app.chat_rag.prompt import TOOL_BUSCAR, TOOL_NAME, build_system, render_tool_result
+from app.chat_rag.prompt import REGISTROS, TOOL_BUSCAR, TOOL_NAME, build_system, render_tool_result
 from app.chat_rag.retriever import buscar, retrieve, stem, tokenize
 from app.health_metrics import phenoage
 
@@ -293,3 +293,20 @@ def test_system_prompt_is_moirai_and_lists_fragments(docs):
     assert TOOL_BUSCAR["input_schema"]["required"] == ["consulta"]
     assert "No encontré nada" in render_tool_result([])
     assert "[kb:banda]" in render_tool_result(buscar(chunks, "rango"))
+
+
+def test_system_prompt_register_follows_perfil_conocimiento(docs):
+    core, chunks = docs
+    frags = retrieve(chunks, "¿Cómo está mi glucosa?")
+    # Default and unknown values both land on the plainest register; the
+    # warmth/"explain it simply" rules are there at every level, and going
+    # deep-technical is always gated on the person asking for it.
+    for perfil in (None, "general", "lo_que_sea"):
+        system = build_system("Ana", core, frags, perfil=perfil)
+        assert REGISTROS["general"] in system
+        assert "sentirse escuchada" in system and "Explicas fácil" in system
+        assert "lo pide explícitamente" in system
+    assert REGISTROS["curioso"] in build_system("Ana", core, frags, perfil="curioso")
+    pro = build_system("Ana", core, frags, perfil="profesional")
+    assert REGISTROS["profesional"] in pro and REGISTROS["general"] not in pro
+    assert "sentirse escuchada" in pro and "lo pide explícitamente" in pro

@@ -5,7 +5,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/theme/tokens.dart';
 
-/// Shell con la navegación inferior: Futuro · Simular · Respaldo · Perfil.
+/// Shell con la navegación inferior: Futuro · Simular · Pregúntame · Perfil.
+/// (Respaldo no es pestaña: se abre desde la esquina de "Tu futuro".)
 /// Glass (blur) para que el contenido pase por debajo.
 class AppShell extends StatelessWidget {
   const AppShell({super.key, required this.shell});
@@ -30,7 +31,7 @@ class AppShell extends StatelessWidget {
               destinations: const [
                 NavigationDestination(icon: Icon(Icons.auto_awesome_outlined), selectedIcon: Icon(Icons.auto_awesome_rounded), label: 'Futuro'),
                 NavigationDestination(icon: Icon(Icons.tune_rounded), selectedIcon: Icon(Icons.tune_rounded), label: 'Simular'),
-                NavigationDestination(icon: Icon(Icons.verified_outlined), selectedIcon: Icon(Icons.verified_rounded), label: 'Respaldo'),
+                NavigationDestination(icon: Icon(Icons.chat_bubble_outline_rounded), selectedIcon: Icon(Icons.chat_bubble_rounded), label: 'Pregúntame'),
                 NavigationDestination(icon: Icon(Icons.person_outline_rounded), selectedIcon: Icon(Icons.person_rounded), label: 'Perfil'),
               ],
             ),

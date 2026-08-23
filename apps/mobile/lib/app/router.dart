@@ -15,12 +15,14 @@ import '../features/levers/lever_detail_screen.dart';
 import '../features/levers/levers_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
 import '../features/profile/profile_screen.dart';
+import '../features/report/report_screen.dart';
 import '../features/shell/app_shell.dart';
 import '../features/simulation/simulating_screen.dart';
 import 'providers.dart';
 
 /// Rutas de la app. Mantener sincronizado con el flujo de pantallas de
-/// CLAUDE.md: A ingreso → B simulación → C futuro → D simular → E respaldo.
+/// CLAUDE.md: A ingreso → B simulación → C futuro → D simular → E respaldo
+/// (E se abre desde el encabezado de C; el chat "Pregúntame" es pestaña).
 abstract final class Routes {
   static const welcome = '/bienvenida';
   static const login = '/login';
@@ -35,6 +37,15 @@ abstract final class Routes {
   static String leverDetail(int i) => '/palancas/$i';
   static const backing = '/respaldo';
   static const profile = '/perfil';
+
+  /// "Tu reporte" (el PDF para el médico, y su vista en pantalla). Push desde
+  /// "Tu futuro" y desde Perfil; vive fuera del shell como Respaldo.
+  static const report = '/reporte';
+
+  /// Pestaña "Pregúntame" del shell (chat sin enfoque, con el bottom nav).
+  static const preguntame = '/preguntame';
+
+  /// Chat a pantalla completa (push): es el que recibe `enfoque`/`q`.
   static const chat = '/chat';
 
   /// Chat abierto "sobre algo": `enfoque` sesga la recuperación del backend
@@ -88,6 +99,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         routes: [GoRoute(path: 'confirmar', builder: (_, _) => const ExamsConfirmScreen())],
       ),
       GoRoute(path: Routes.simulating, builder: (_, _) => const SimulatingScreen()),
+      // Respaldo vive fuera del shell: se abre desde la esquina de "Tu futuro".
+      GoRoute(path: Routes.backing, builder: (_, _) => const BackingScreen()),
+      GoRoute(path: Routes.report, builder: (_, _) => const ReportScreen()),
       GoRoute(
         path: Routes.chat,
         builder: (_, s) => ChatScreen(enfoque: s.uri.queryParameters['enfoque'], preguntaInicial: s.uri.queryParameters['q']),
@@ -114,7 +128,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               ],
             ),
           ]),
-          StatefulShellBranch(routes: [GoRoute(path: Routes.backing, builder: (_, _) => const BackingScreen())]),
+          StatefulShellBranch(routes: [GoRoute(path: Routes.preguntame, builder: (_, _) => const ChatScreen(enPestana: true))]),
           StatefulShellBranch(routes: [GoRoute(path: Routes.profile, builder: (_, _) => const ProfileScreen())]),
         ],
       ),
