@@ -14,26 +14,22 @@ import 'onboarding_widgets.dart';
 
 /// Pasos a–c: lo básico (va a `/me`) y el origen (local).
 
-// ── a. Nombre, nacimiento, sexo al nacer ─────────────────────────────────
+// ── a. Nacimiento, sexo al nacer ─────────────────────────────────────────
 class PasoIdentidad extends StatelessWidget {
   const PasoIdentidad({
     super.key,
-    required this.nombre,
     required this.nacimiento,
     required this.sexo,
     required this.errores,
     required this.onNacimiento,
     required this.onSexo,
-    required this.onEditado,
   });
 
-  final TextEditingController nombre;
   final DateTime? nacimiento;
   final SexAtBirth? sexo;
   final Map<String, String> errores;
   final ValueChanged<DateTime> onNacimiento;
   final ValueChanged<SexAtBirth> onSexo;
-  final ValueChanged<String> onEditado;
 
   Future<void> _elegirFecha(BuildContext context) async {
     final hoy = DateTime.now();
@@ -58,20 +54,6 @@ class PasoIdentidad extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TextField(
-          controller: nombre,
-          textCapitalization: TextCapitalization.words,
-          textInputAction: TextInputAction.done,
-          autofillHints: const [AutofillHints.name],
-          onChanged: (_) => onEditado('full_name'),
-          decoration: InputDecoration(
-            labelText: '¿Cómo te llamo?',
-            hintText: 'Tu nombre',
-            prefixIcon: const Icon(Icons.person_outline_rounded),
-            errorText: errores['full_name'],
-          ),
-        ).stagger(0),
-        const SizedBox(height: Sp.stackCard),
         InkWell(
           borderRadius: BorderRadius.circular(Rad.md + 2),
           onTap: () => _elegirFecha(context),
@@ -88,7 +70,7 @@ class PasoIdentidad extends StatelessWidget {
               style: t.bodyLarge,
             ),
           ),
-        ).stagger(1),
+        ).stagger(0),
         if (edad != null) ...[
           const SizedBox(height: Sp.x3),
           Row(
@@ -106,7 +88,7 @@ class PasoIdentidad extends StatelessWidget {
           options: {for (final s in SexAtBirth.values) s: s.label},
           value: sexo,
           onChanged: onSexo,
-        ).stagger(2),
+        ).stagger(1),
         if (errores['sex_at_birth'] != null) PistaCampo(errores['sex_at_birth']!),
       ],
     );

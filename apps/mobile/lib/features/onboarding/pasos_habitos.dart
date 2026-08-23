@@ -146,10 +146,15 @@ class PasoFamilia extends ConsumerWidget {
 
     final conDetalle = ob.historialFamiliar.where((e) => e.condicion != 'ninguna').toList();
 
+    final condiciones = {for (final e in Catalogos.condicionesFamiliares.entries) if (e.key != 'ninguna') e.key: e.value};
+    const ninguna = {'ninguna': 'Ninguna que yo sepa'};
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        MultiChips(options: Catalogos.condicionesFamiliares, values: seleccion, onChanged: toggle).stagger(0),
+        MultiChips(options: condiciones, values: seleccion, onChanged: toggle).stagger(0),
+        const SizedBox(height: Sp.x4),
+        MultiChips(options: ninguna, values: seleccion, onChanged: toggle).stagger(1),
         AnimatedSize(
           duration: Motion.slow,
           curve: Motion.out,
