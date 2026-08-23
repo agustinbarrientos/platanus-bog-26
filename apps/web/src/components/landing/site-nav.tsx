@@ -5,8 +5,6 @@ import { closeNav, toggleNav, useMoiraiScroll } from "@/lib/moirai/scroll-store"
 import { MoiraiLogo } from "./brand";
 import { BurgerIcon } from "./icons";
 
-const APK = "/downloads/moirai.apk";
-
 const LINKS = [
   { href: "#motor", label: "Cómo funciona" },
   { href: "#chat", label: "Pregúntale a Moirai" },
@@ -38,7 +36,7 @@ export function SiteNav() {
         >
           <BurgerIcon width={20} height={20} />
         </button>
-        <a className="mo-nav__link mo-nav__cta" href={APK} download>
+        <a className="mo-nav__link mo-nav__cta" href="#descargar">
           Descargar
         </a>
       </div>
@@ -49,7 +47,7 @@ export function SiteNav() {
             {l.label}
           </a>
         ))}
-        <a href={APK} download onClick={closeNav}>
+        <a href="#descargar" onClick={closeNav}>
           Descargar
         </a>
       </div>
