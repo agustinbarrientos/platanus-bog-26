@@ -1,1 +1,0 @@
-- The backend API (every endpoint, request/response shape, error format) is documented in `apps/backend/API.md` — read it before wiring up any fetch/API call from `apps/web` or `apps/mobile`.
