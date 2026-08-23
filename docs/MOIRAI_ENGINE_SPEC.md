@@ -1,13 +1,12 @@
-# MOIRAI — Especificación del Motor
-## Input · Output · Simulación Monte Carlo — listo para Claude Code
+# MOIRAI - Especificación del Motor
+## Input - Output - Simulación Monte Carlo - listo para Claude Code
 
-> **Cómo usar:** ábrelo con Claude Code y di:
-> *"Lee MOIRAI_ENGINE_SPEC.md. Construye el motor de simulación en Python/FastAPI siguiendo las tres capas y los esquemas JSON. Empieza por la Capa 1, valida con el caso de prueba de la sección 9, y no avances de capa hasta que la anterior pase su test. Prioriza que corra sobre que sea completo."*
+> **Cómo usar:** ábrelo con Claude Code y di: *"Lee MOIRAI_ENGINE_SPEC.md. Construye el motor de simulación en Python/FastAPI siguiendo las tres capas y los esquemas JSON. Empieza por la Capa 1, valida con el caso de prueba de la sección 9, y no avances de capa hasta que la anterior pase su test. Prioriza que corra sobre que sea completo."*
 
 ---
 
 ## 0. OBJETIVO EN UNA FRASE
-Tomar los biomarcadores y hábitos de una persona, medir su edad biológica hoy, y **simular miles de trayectorias de su salud futura a 10 años** bajo distintas decisiones — devolviendo UNA recomendación protagonista: *qué decisión gana más años de salud por unidad de esfuerzo, y por qué.*
+Tomar los biomarcadores y hábitos de una persona, medir su edad biológica hoy, y **simular miles de trayectorias de su salud futura a 10 años** bajo distintas decisiones - devolviendo UNA recomendación protagonista: *qué decisión gana más años de salud por unidad de esfuerzo, y por qué.*
 
 ---
 
@@ -17,13 +16,13 @@ Tomar los biomarcadores y hábitos de una persona, medir su edad biológica hoy,
 > La trayectoria de edad biológica a 10 años + la mejor decisión, con su explicación.
 
 **Outputs "Fase 2" (se narran en el pitch, NO se construyen):**
-- Foto envejecida del rostro real → reemplazado por avatar abstracto que envejece.
+- Foto envejecida del rostro real -> reemplazado por avatar abstracto que envejece.
 - Alimentación personalizada detallada.
 - Suplementos específicos.
 - Propensión a alergias.
 - Integración de prueba genética / ancestría.
 
-> Del boceto original había ~4 outputs. En 36h eso son 4 cosas a medias. Podamos a UNO impecable. Los demás son roadmap — valiosos como visión, fatales como build.
+> Del boceto original había ~4 outputs. En 36h eso son 4 cosas a medias. Podamos a UNO impecable. Los demás son roadmap - valiosos como visión, fatales como build.
 
 **Biomarcadores del demo:** los 9 de PhenoAge si el tiempo alcanza; el núcleo mínimo si no: **albúmina, creatinina, glucosa, hs-CRP, RDW, recuento de leucocitos** + edad. Los faltantes se imputan de medianas NHANES (marcados como inferidos).
 
@@ -61,7 +60,7 @@ INPUT (biomarcadores + hábitos)
 OUTPUT protagonista (trayectoria + decisión + porqué)
 ```
 
-**La confusión que esto resuelve:** una fórmula de pesos (PhenoAge) NO predice el futuro — mide el presente. La predicción vive en la Capa 2 (dinámica temporal). Monte Carlo (Capa 3) solo le añade incertidumbre. Son tres piezas apiladas, no una.
+**La confusión que esto resuelve:** una fórmula de pesos (PhenoAge) NO predice el futuro - mide el presente. La predicción vive en la Capa 2 (dinámica temporal). Monte Carlo (Capa 3) solo le añade incertidumbre. Son tres piezas apiladas, no una.
 
 ---
 
@@ -107,14 +106,13 @@ OUTPUT protagonista (trayectoria + decisión + porqué)
 
 ---
 
-## 4. CAPA 1 — MEDIDOR (PhenoAge)
+## 4. CAPA 1 - MEDIDOR (PhenoAge)
 
 ### Qué hace
 Colapsa el estado de biomarcadores en un número: edad fenotípica (biológica).
 
 ### Fórmula (PhenoAge, Levine et al. 2018)
-Los 9 predictores + edad cronológica, con sus coeficientes publicados:
-albúmina, creatinina, glucosa, log(hs-CRP), recuento de linfocitos %, volumen corpuscular medio, RDW, fosfatasa alcalina, recuento de leucocitos, edad.
+Los 9 predictores + edad cronológica, con sus coeficientes publicados: albúmina, creatinina, glucosa, log(hs-CRP), recuento de linfocitos %, volumen corpuscular medio, RDW, fosfatasa alcalina, recuento de leucocitos, edad.
 
 ```python
 import numpy as np
@@ -149,17 +147,17 @@ def phenoage(bm: dict, edad: float) -> float:
     return phenoage_years
 ```
 
-> **CRÍTICO:** los coeficientes y la normalización de unidades deben verificarse contra el paper original al implementar. No confíes en los números de arriba sin cross-check — es tu ancla de credibilidad ante el jurado. Documenta la fuente en el código.
+> **CRÍTICO:** los coeficientes y la normalización de unidades deben verificarse contra el paper original al implementar. No confíes en los números de arriba sin cross-check - es tu ancla de credibilidad ante el jurado. Documenta la fuente en el código.
 
 ### Manejo de faltantes
-Si falta un biomarcador → imputar con mediana NHANES por edad/sexo, marcar `fuente:"inferido"`, y **ensanchar la incertidumbre** en Capa 3 (menos datos reales → banda P10–P90 más ancha).
+Si falta un biomarcador -> imputar con mediana NHANES por edad/sexo, marcar `fuente:"inferido"`, y **ensanchar la incertidumbre** en Capa 3 (menos datos reales -> banda P10-P90 más ancha).
 
 ### Test Capa 1
-Dado un perfil de NHANES con edad cronológica conocida, la edad fenotípica debe caer en rango plausible (±10–15 años de la cronológica para población sana). Si sale 200 o -30, hay error de unidades.
+Dado un perfil de NHANES con edad cronológica conocida, la edad fenotípica debe caer en rango plausible (+/-10-15 años de la cronológica para población sana). Si sale 200 o -30, hay error de unidades.
 
 ---
 
-## 5. CAPA 2 — MOTOR DE EVOLUCIÓN (la dinámica que predice)
+## 5. CAPA 2 - MOTOR DE EVOLUCIÓN (la dinámica que predice)
 
 ### Qué hace
 Regla: dado el estado en el año `t` y los hábitos/intervenciones, produce el estado en `t+1`. Aplicada 10 veces = trayectoria de 10 años.
@@ -212,14 +210,14 @@ def trayectoria_deterministica(estado0: dict, intervenciones: list,
     return [phenoage(e, edad0 + i) for i, e in enumerate(estados)]
 ```
 
-> **De dónde salen estos pesos (tu pregunta filosa):** los de Capa 1 = paper PhenoAge. Los de Capa 2 = tamaños de efecto de literatura epidemiológica (ej. cuánto baja la PCR el ejercicio). Aproximados pero CITABLES. Nunca inventados-y-presentados-como-verdad. Si el tiempo alcanza, calibrar con asociaciones hábito↔biomarcador en NHANES.
+> **De dónde salen estos pesos (tu pregunta filosa):** los de Capa 1 = paper PhenoAge. Los de Capa 2 = tamaños de efecto de literatura epidemiológica (ej. cuánto baja la PCR el ejercicio). Aproximados pero CITABLES. Nunca inventados-y-presentados-como-verdad. Si el tiempo alcanza, calibrar con asociaciones hábito<->biomarcador en NHANES.
 
 ### Test Capa 2
 Una trayectoria "sin intervención" debe envejecer más rápido que una "con buenas intervenciones". Si dormir 8h no mejora nada, hay error de signo.
 
 ---
 
-## 6. CAPA 3 — MONTE CARLO (incertidumbre + wow)
+## 6. CAPA 3 - MONTE CARLO (incertidumbre + wow)
 
 ### Qué hace
 El cuerpo no es determinista. Corre la Capa 2 N=10000 veces; en cada paso anual añade ruido biológico aleatorio. Las 10000 trayectorias forman el abanico.
@@ -290,11 +288,11 @@ def barrido_escenarios(estado0, edad0, intervenciones_posibles):
 ```
 
 ### Test Capa 3
-El abanico P10–P90 debe ensancharse con los años (más incertidumbre a futuro). Un perfil con biomarcadores imputados debe tener banda más ancha que uno con datos completos.
+El abanico P10-P90 debe ensancharse con los años (más incertidumbre a futuro). Un perfil con biomarcadores imputados debe tener banda más ancha que uno con datos completos.
 
 ---
 
-## 7. SHAP — INTERPRETABILIDAD (el porqué)
+## 7. SHAP - INTERPRETABILIDAD (el porqué)
 
 Sobre el modelo de riesgo, calcula la contribución de cada biomarcador/hábito a la edad biológica proyectada. Alimenta al mensaje del output.
 
@@ -380,7 +378,7 @@ perfil_test = {
 ---
 
 ## 11. ORDEN DE CONSTRUCCIÓN (no te saltes pasos)
-1. Capa 1 sola, con caso de prueba. Que dé edad biológica plausible. ← empieza aquí
+1. Capa 1 sola, con caso de prueba. Que dé edad biológica plausible. <- empieza aquí
 2. Cargar NHANES, medianas de imputación funcionando.
 3. Capa 2: trayectoria determinista. Test de signos.
 4. Capa 3: Monte Carlo, un escenario. Ver el abanico en números.
@@ -388,21 +386,21 @@ perfil_test = {
 6. SHAP sobre el basal.
 7. Ensamblar output JSON completo (sección 8).
 8. Endpoint FastAPI. Conectar frontend.
-9. Caso demo pre-cargado (red de seguridad — NUNCA depender de upload en vivo).
+9. Caso demo pre-cargado (red de seguridad - NUNCA depender de upload en vivo).
 
 ---
 
 ## 12. LO QUE NO SE HACE (protección anti-dispersión)
-- ❌ Foto envejecida del rostro real (avatar abstracto en su lugar).
-- ❌ Alimentación/suplementos/alergias como output del demo (roadmap).
-- ❌ Modelo biofísico "real" de envejecimiento (es modelo de trayectorias plausibles).
-- ❌ Coeficientes inventados presentados como verdad (siempre "aproximados, de literatura").
-- ❌ Más de 3 intervenciones simultáneas en el barrido (evita explosión combinatoria).
-- ❌ Correr SHAP sobre las 10000 trayectorias (basal basta para el demo).
+- NO Foto envejecida del rostro real (avatar abstracto en su lugar).
+- NO Alimentación/suplementos/alergias como output del demo (roadmap).
+- NO Modelo biofísico "real" de envejecimiento (es modelo de trayectorias plausibles).
+- NO Coeficientes inventados presentados como verdad (siempre "aproximados, de literatura").
+- NO Más de 3 intervenciones simultáneas en el barrido (evita explosión combinatoria).
+- NO Correr SHAP sobre las 10000 trayectorias (basal basta para el demo).
 
 ---
 
 ## 13. FRASES DEFENSIVAS PARA EL JURADO
-- "¿Los pesos son inventados?" → "Capa 1 es PhenoAge publicado (Levine 2018). Capa 2 son efectos de literatura epidemiológica, aproximados y citables. Nada presentado como verdad exacta."
-- "¿Esto predice enfermedad?" → "No. Estratifica riesgo y proyecta trayectorias probables de edad biológica, con incertidumbre explícita — el abanico muestra lo que no sabemos."
-- "¿Por qué confiar en la proyección?" → "No pedimos confianza ciega: mostramos la banda P10–P90. La incertidumbre es parte del output, no algo que escondemos."
+- "¿Los pesos son inventados?" -> "Capa 1 es PhenoAge publicado (Levine 2018). Capa 2 son efectos de literatura epidemiológica, aproximados y citables. Nada presentado como verdad exacta."
+- "¿Esto predice enfermedad?" -> "No. Estratifica riesgo y proyecta trayectorias probables de edad biológica, con incertidumbre explícita - el abanico muestra lo que no sabemos."
+- "¿Por qué confiar en la proyección?" -> "No pedimos confianza ciega: mostramos la banda P10-P90. La incertidumbre es parte del output, no algo que escondemos."
