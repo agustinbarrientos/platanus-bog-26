@@ -7,7 +7,7 @@ import { CheckIcon, LeversIcon, RangeIcon } from "./icons";
 import { clamp } from "./reveal";
 
 /**
- * "De ese papel que guardas en un cajón salen diez mil futuros".
+ * "Del papel del examen a tu plan".
  *
  * Three cards run in sequence off one pinned scroll: the photo straightens out
  * of a skewed blur, the biomarkers deblur in one by one, then the histogram and
@@ -58,10 +58,10 @@ export function PipelineSection() {
         <div className="mo-pin-panel__inner" style={{ gap: 10 }}>
           <div>
             <h2 className="mo-h2" style={{ fontSize: 44, lineHeight: 1.06, maxWidth: 700, marginBottom: 8 }}>
-              De ese papel que guardas en un cajón salen diez mil futuros
+              Del papel del examen a tu plan
             </h2>
             <p className="mo-lede" style={{ fontSize: 15, lineHeight: 1.5, maxWidth: 600 }}>
-              Una foto de tu examen, todos sus biomarcadores, diez mil futuros simulados.
+              Le tomas una foto. Leo tus biomarcadores y simulo lo que viene.
             </p>
           </div>
 
@@ -117,7 +117,7 @@ export function PipelineSection() {
                 </div>
               </div>
               <div className="mo-pipe__note">
-                Basta una foto del examen, incluso torcida o con sombra.
+                Sirve incluso torcida o con sombra.
               </div>
             </div>
 
@@ -164,7 +164,7 @@ export function PipelineSection() {
                 })}
               </div>
               <div className="mo-pipe__note">
-                El valor en ámbar quedó borroso: puedes corregirlo antes de simular.
+                El valor en ámbar quedó borroso. Puedes corregirlo.
               </div>
             </div>
 
@@ -251,7 +251,7 @@ export function PipelineSection() {
                 </div>
               </div>
               <div className="mo-pipe__note">
-                Tu mediana, con su rango del 90%: entre 61 y 75 años.
+                Estimación, no diagnóstico. Entre 61 y 75 años.
               </div>
             </div>
           </div>

@@ -10,7 +10,7 @@ import { Mascot } from "./mascot";
 import { reveal } from "./reveal";
 
 /**
- * "De la foto de tu examen a un plan que puedes sostener" — four real screens
+ * "Así se ve en tu teléfono" — four real screens
  * in device frames. On desktop they sit in a grid; below 820px the grid turns
  * into a snapping carousel with arrows.
  */
@@ -18,7 +18,7 @@ import { reveal } from "./reveal";
 const F = "var(--font-fredoka), system-ui, sans-serif";
 
 const CAPTIONS = [
-  "Ocho preguntas, y el abanico se cierra",
+  "Unas preguntas, y el rango se cierra",
   "Leo tu examen, y tú corriges",
   "¿Y si no lo sostienes?",
   "La prueba, dentro de la app",
@@ -137,7 +137,7 @@ function OnboardingScreen() {
   return (
     <Screen title="Cuéntame lo básico">
       <div className="mo-screen__body" style={{ gap: 6, padding: "4px 13px 0" }}>
-        <div style={{ fontSize: 11, color: "#4F5D69" }}>Voy en el dato 4 de 8.</div>
+        <div style={{ fontSize: 11, color: "#4F5D69" }}>Voy por la mitad.</div>
         <div
           style={{
             display: "flex",
@@ -496,7 +496,7 @@ export function GallerySection() {
         >
           <div className="mo-col" style={{ minWidth: 340 }}>
             <h2 className="mo-h2" style={{ fontSize: 44, lineHeight: 1.08, maxWidth: 700 }}>
-              De la foto de tu examen a un plan que puedes sostener
+              Así se ve en tu teléfono
             </h2>
           </div>
         </div>

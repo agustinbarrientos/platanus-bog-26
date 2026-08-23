@@ -15,7 +15,7 @@ import {
 import { ChevronLeftIcon, ChevronRightIcon, NudgeArrowIcon } from "./icons";
 
 /**
- * "Tus biomarcadores, vividos diez mil veces" — the pinned engine scene.
+ * "Simulo tu vida diez mil veces" — the pinned engine scene.
  *
  * Scrolling through the section walks three views of the same simulation:
  * the trajectories being drawn one by one, the distribution they collapse
@@ -35,18 +35,15 @@ const PILLS: { stage: Stage; label: string }[] = [
 const CAPTIONS: Record<Stage, (local: number) => string> = {
   1: (l) =>
     l < 0.45
-      ? "Cada trazo es una vida posible, avanzando año por año con tus biomarcadores."
+      ? "Cada trazo es una vida posible."
       : l < 0.8
-        ? "Un evento en 2031 cambia el estado y se arrastra hasta el final. Eso es la microsimulación."
-        : "Mediana de 68 años sin enfermedad crónica, con un rango de 61 a 75 que se muestra en vez de esconderse.",
+        ? "Una enfermedad cambia todo lo que viene después."
+        : "Mediana de 68 años sanos, con un rango de 61 a 75.",
   2: (l) =>
     l < 0.6
-      ? "Las diez mil vidas, ordenadas por cuándo aparece la primera enfermedad crónica."
-      : "El rango del 90% va de 61 a 75. Un número solo sería una mentira de precisión.",
-  3: (l) =>
-    l < 0.6
-      ? "Me probé contra 5.000 personas cuyo desenlace ya se conoce y que nunca vi al aprender."
-      : "Mientras más pegada esté la curva a la diagonal, mejor calibrado estoy. Aquí: 88%.",
+      ? "Las diez mil vidas, en un solo gráfico."
+      : "Casi siempre caes entre los 61 y los 75 años.",
+  3: () => "Me probé contra 5.000 personas que ya vivieron esto.",
 };
 
 const axisLabel = { fontWeight: 600, fontSize: 12 } as const;
@@ -276,7 +273,7 @@ export function EngineSection() {
           52
         </text>
         <text x={520} y={404 + EXTRA} fill="#8D9BA8" textAnchor="middle" style={axisLabel}>
-          años sin enfermedad crónica · mediana 68, rango del 90% entre 61 y 75
+          años sin enfermedad crónica
         </text>
         <text x={1028} y={404 + EXTRA} fill="#8D9BA8" textAnchor="end" style={axisLabel}>
           92 años
@@ -377,13 +374,7 @@ export function EngineSection() {
             88%
           </div>
           <div style={{ fontWeight: 700, fontSize: 15, lineHeight: 1.45, color: "#4F5D69", maxWidth: 340 }}>
-            de las veces mi rango del 90% contuvo el resultado real
-          </div>
-          <div style={{ fontWeight: 600, fontSize: 13.5, lineHeight: 1.5, color: "#8D9BA8", maxWidth: 340 }}>
-            5.000 personas con desenlace conocido, que nunca vi mientras aprendía.
-          </div>
-          <div style={{ fontWeight: 600, fontSize: 13.5, lineHeight: 1.5, color: "#8D9BA8", maxWidth: 340 }}>
-            Estar calibrado no es adivinarte a ti: por eso comparo tus escenarios entre sí.
+            de las veces acerté dentro de mi rango
           </div>
         </div>
       </div>
@@ -411,12 +402,11 @@ export function EngineSection() {
           <div style={{ display: "flex", alignItems: "flex-end", gap: 20, flexWrap: "wrap" }}>
             <div className="mo-col" style={{ gap: 7 }}>
               <h2 className="mo-h2" style={{ fontSize: 40, lineHeight: 1.1 }}>
-                Tus biomarcadores, vividos diez mil veces
+                Simulo tu vida diez mil veces
               </h2>
               <p className="mo-lede" style={{ fontSize: 15.5, lineHeight: 1.55, maxWidth: 600 }}>
-                Diez mil vidas avanzan año por año con tus números, y cada evento se arrastra hasta
-                el final. Después repito las mismas diez mil cambiando una sola cosa: esa diferencia
-                es tu respuesta.
+                Cada vida avanza año por año con tus números. Luego repito todo cambiando una sola
+                cosa, y esa diferencia es tu respuesta.
               </p>
             </div>
             <div className="mo-eng__counter">

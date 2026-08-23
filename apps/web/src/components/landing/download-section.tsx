@@ -32,10 +32,10 @@ export function DownloadSection() {
       >
         <Mascot size={150} />
         <h2 className="mo-h2" style={{ fontSize: 46, lineHeight: 1.1, maxWidth: 680 }}>
-          Tu examen, diez mil futuros, un plan claro
+          Tu examen. Diez mil futuros. Un plan.
         </h2>
         <p className="mo-lede" style={{ fontSize: 17, lineHeight: 1.6, maxWidth: 520 }}>
-          Tu examen, tu simulación, tus decisiones.
+          Sin cuenta, sin correo.
         </p>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
           <a

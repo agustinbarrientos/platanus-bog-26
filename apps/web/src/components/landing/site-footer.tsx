@@ -14,7 +14,7 @@ export function SiteFooter() {
       <div className="mo-footer__row">
         <MoiraiLogo aria-label="Moirai" style={{ height: 22, width: "auto", display: "block" }} />
         <span style={{ fontWeight: 600, fontSize: 12.5, color: "#4F5D69" }}>
-          Ve tu futuro biológico. Cámbialo.
+          Ve tu futuro. Cámbialo.
         </span>
         <div style={{ flex: 1 }} />
         <a className="mo-footer__link" href="#motor">

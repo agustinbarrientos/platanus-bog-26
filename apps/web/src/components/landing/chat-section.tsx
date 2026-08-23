@@ -6,7 +6,7 @@ import { ArrowRightIcon } from "./icons";
 import { Mascot } from "./mascot";
 
 /**
- * "Tus números, explicados por Moirai" — a pinned conversation that types
+ * "Pregúntame lo que quieras" — a pinned conversation that types
  * itself out as you scroll. The whole exchange is one continuous character
  * budget, so bubbles appear in order and the last one lands at the bottom
  * of the section.
@@ -50,11 +50,10 @@ export function ChatSection() {
         >
           <div className="mo-col" style={{ minWidth: 340, gap: 12 }}>
             <h2 className="mo-h2" style={{ fontSize: 44, lineHeight: 1.06, maxWidth: 520 }}>
-              Tus números, explicados por Moirai
+              Pregúntame lo que quieras
             </h2>
             <p className="mo-lede" style={{ fontSize: 16.5, lineHeight: 1.55, maxWidth: 470 }}>
-              Pregunta con tus propias palabras. Responde con los resultados de tu simulación, no
-              con consejos genéricos.
+              Respondo con tu simulación, no con consejos genéricos.
             </p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, paddingTop: 6 }}>
               {PROMPTS.map((q) => (

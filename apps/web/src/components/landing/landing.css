@@ -1134,13 +1134,9 @@ html:has(.moirai) {
   .mo-eng__slide {
     --mo-cal-max: 300px;
   }
-  /* The calibration card carries the most copy of the three, and the graph
-     needs the room more than the last line of prose does. */
+  /* The graph needs the room more than an oversized number does. */
   .mo-eng__proof > div:first-child {
     font-size: 44px !important;
-  }
-  .mo-eng__proof > div:last-child {
-    display: none;
   }
   .mo-eng__cap {
     height: auto;

@@ -76,7 +76,7 @@ export function ProofSection() {
           className="mo-lede"
           style={{ flex: "none", width: 330, fontSize: 15, lineHeight: 1.6 }}
         >
-          Cualquiera puede darte un número. Lo difícil es decirte qué tan seguido acierta.
+          Cualquiera puede darte un número. Yo te digo qué tan seguido acierto.
         </p>
       </div>
 
@@ -143,7 +143,7 @@ export function ProofSection() {
           </div>
 
           <div style={{ fontSize: 13.5, lineHeight: 1.5, color: "#4F5D69", textWrap: "pretty" }}>
-            Cada punto representa 25 personas. Los azules cayeron dentro de mi rango del 90%.
+            Cada punto son 25 personas. Los azules cayeron dentro de mi rango.
           </div>
 
           <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>

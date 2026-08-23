@@ -43,11 +43,11 @@ export function Hero() {
       <div className="mo-hero__row">
         <div className="mo-hero__col">
           <h1 className="mo-hero__title">
-            Ve tu futuro biológico. <span style={{ color: "#2C8BCF" }}>Cámbialo.</span>
+            Conoce tus años sanos, <span style={{ color: "#2C8BCF" }}>y cómo sumar más.</span>
           </h1>
           <p className="mo-hero__lede">
-            Una foto de tu examen y ocho preguntas. Corro tu vida diez mil veces y te digo cuántos
-            años sanos llevas por delante, y qué los mueve.
+            Sube tu examen y contesta unas preguntas. Simulo tu vida diez mil veces, te digo qué
+            enfermedades son probables y qué puedes hacer.
           </p>
 
           <div className="mo-hero__actions">

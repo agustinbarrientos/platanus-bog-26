@@ -6,9 +6,9 @@ import { AskIcon, LockSmallIcon, ReadIcon } from "./icons";
 import { reveal } from "./reveal";
 
 const STATS = [
-  { Icon: LockSmallIcon, lines: ["Tu examen se lee", "una vez, no se guarda"] },
-  { Icon: ReadIcon, lines: ["Leo los biomarcadores", "que tenga tu examen"] },
-  { Icon: AskIcon, lines: ["Pregúntale a Moirai", "en tus palabras"] },
+  { Icon: LockSmallIcon, lines: ["Tus datos", "no se guardan"] },
+  { Icon: ReadIcon, lines: ["Leo tu examen", "con una foto"] },
+  { Icon: AskIcon, lines: ["Pregúntame", "lo que quieras"] },
 ];
 
 export function StatsRow() {
