@@ -1,0 +1,387 @@
+/* The pitch deck: a dark 1920×1080 stage scaled to the screen. The glow and
+   mascot keyframes come from landing.css (imported by app/slides/page.tsx
+   before this file); the colour tokens are the deck's own, below. */
+
+.sl-viewport {
+  /* The brand tokens the deck uses, copied from moirai-tokens.css: that file
+     is scoped to `.moirai`, and the landing's `.moirai` wrapper also carries a
+     reduced-motion kill switch that a presentation must not inherit. */
+  --n-900: #151c22;
+  --n-400: #8d9ba8;
+  --n-300: #b5c2cc;
+  --n-50: #f4f8fa;
+  --sky-100: #dbeefb;
+  --sky-300: #8ac7ef;
+  --sky-400: #52a9e2;
+  --mint-300: #7ed9ac;
+  --sl-bg: var(--n-900);
+  --sl-text: var(--n-50);
+  --sl-muted: var(--n-300);
+  --sl-accent: var(--sky-300);
+  --sl-green: var(--mint-300);
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: var(--sl-bg);
+  color: var(--sl-text);
+  font-family: var(--font-nunito), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  cursor: none;
+  transition: background 0.5s ease;
+}
+.sl-viewport--blue {
+  --sl-bg: #0096ea;
+}
+
+.sl-stage {
+  position: absolute;
+  left: calc(50% - 960px);
+  top: calc(50% - 540px);
+  width: 1920px;
+  height: 1080px;
+  transform-origin: center;
+}
+
+.sl-slide {
+  position: absolute;
+  inset: 0;
+}
+.sl-slide--in {
+  z-index: 1;
+  animation: slFadeIn 0.5s ease both;
+}
+.sl-slide--out {
+  z-index: 0;
+  pointer-events: none;
+  animation: slFadeOut 0.5s ease both;
+}
+
+/* glows */
+.sl-glow {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: moBlobDrift 26s ease-in-out infinite;
+  transition: opacity 0.5s ease;
+}
+.sl-glow--sky {
+  width: 1100px;
+  height: 1100px;
+  top: -420px;
+  left: -300px;
+  background: radial-gradient(circle, rgba(82, 169, 226, 0.22), rgba(82, 169, 226, 0) 66%);
+}
+.sl-glow--mint {
+  width: 900px;
+  height: 900px;
+  bottom: -380px;
+  right: -260px;
+  background: radial-gradient(circle, rgba(76, 196, 140, 0.14), rgba(76, 196, 140, 0) 66%);
+  animation-duration: 30s;
+  animation-delay: -12s;
+}
+.sl-viewport--blue .sl-glow {
+  opacity: 0;
+}
+
+/* type */
+.sl-title {
+  font-family: var(--font-fredoka), system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 96px;
+  line-height: 1.08;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+.sl-big {
+  font-family: var(--font-fredoka), system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 200px;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+.sl-line {
+  font-family: var(--font-fredoka), system-ui, sans-serif;
+  font-weight: 500;
+  font-size: 72px;
+  line-height: 1.15;
+}
+.sl-source {
+  font-weight: 700;
+  font-size: 40px;
+  letter-spacing: 0.1em;
+  color: var(--sl-muted);
+}
+.sl-tnum {
+  font-variant-numeric: tabular-nums;
+}
+.sl-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+}
+.sl-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 20px 44px;
+  border-radius: 999px;
+  background: rgba(138, 199, 239, 0.13);
+  border: 1.5px solid rgba(138, 199, 239, 0.35);
+  color: var(--sky-100);
+  font-weight: 700;
+  font-size: 40px;
+  line-height: 1.2;
+}
+
+/* layout */
+.sl-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 40px;
+  padding: 0 160px;
+}
+.sl-top {
+  position: absolute;
+  left: 160px;
+  right: 160px;
+  top: 72px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 60px;
+}
+.sl-top__text {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+  max-width: 1600px;
+  text-align: left;
+}
+.sl-top__text .sl-title {
+  max-width: 1240px;
+}
+.sl-chart {
+  position: absolute;
+  left: 240px;
+  right: 240px;
+  bottom: 30px;
+}
+.sl-chart__layer {
+  position: absolute;
+  inset: 0;
+  transition: opacity 0.5s ease;
+}
+
+/* counter (solución) */
+.sl-counter {
+  position: absolute;
+  right: 80px;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.sl-counter__num {
+  font-family: var(--font-fredoka), system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 120px;
+  line-height: 1;
+  color: var(--sl-accent);
+}
+.sl-counter__label {
+  font-weight: 700;
+  font-size: 36px;
+  color: var(--sl-muted);
+}
+.sl-counter__bar {
+  width: 340px;
+  height: 10px;
+  margin-top: 8px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.sl-counter__fill {
+  height: 100%;
+  border-radius: 5px;
+  background: var(--sky-400);
+  box-shadow: 0 0 14px rgba(82, 169, 226, 0.6);
+}
+
+/* intro */
+.sl-intro__logo {
+  display: block;
+  width: 860px;
+  height: auto;
+}
+
+/* demo */
+.sl-demo__mascot {
+  position: absolute;
+  top: 60px;
+  left: 0;
+  width: 1120px;
+  height: 630px;
+  animation: slCross 8s linear infinite;
+}
+.sl-demo__line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 680px;
+  text-align: center;
+}
+
+/* cierre */
+.sl-close__logo {
+  display: block;
+  width: 980px;
+  height: auto;
+}
+.sl-close__logo path {
+  fill: #fff;
+}
+.sl-close__url {
+  font-family: var(--font-fredoka), system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 88px;
+  letter-spacing: -0.01em;
+  color: #fff;
+}
+.sl-close__qr {
+  width: 460px;
+  height: 460px;
+  border-radius: 36px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
+}
+
+/* examen */
+.sl-exam {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 880px 1fr;
+  column-gap: 90px;
+  align-items: center;
+  padding: 0 120px;
+}
+.sl-exam__card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 32px 40px 28px;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1.5px solid rgba(138, 199, 239, 0.16);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+}
+.sl-exam__head {
+  margin-bottom: 10px;
+  padding-bottom: 16px;
+  border-bottom: 1.5px solid rgba(255, 255, 255, 0.08);
+  font-weight: 700;
+  font-size: 34px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--n-400);
+}
+.sl-exam__row {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 6px 18px 6px 46px;
+  border-radius: 14px;
+  transition: background 0.35s ease;
+}
+.sl-exam__row::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin-top: -7px;
+  border-radius: 50%;
+  background: var(--sky-300);
+  opacity: 0;
+  transform: scale(0.4);
+  transition:
+    opacity 0.35s ease,
+    transform 0.35s ease,
+    box-shadow 0.35s ease;
+}
+.sl-exam__row--lit {
+  background: rgba(138, 199, 239, 0.1);
+}
+.sl-exam__row--lit::before {
+  opacity: 1;
+  transform: scale(1);
+  box-shadow: 0 0 18px var(--sky-300);
+}
+.sl-exam__label {
+  font-weight: 700;
+  font-size: 36px;
+  color: var(--n-300);
+}
+.sl-exam__val {
+  font-family: var(--font-fredoka), system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 42px;
+  color: var(--n-400);
+  transition:
+    color 0.35s ease,
+    text-shadow 0.35s ease;
+}
+.sl-exam__row--lit .sl-exam__val {
+  color: var(--sky-100);
+  text-shadow: 0 0 28px rgba(138, 199, 239, 0.85);
+}
+.sl-exam__unit {
+  margin-left: 12px;
+  font-family: var(--font-nunito), system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 36px;
+  color: var(--n-400);
+}
+.sl-exam__text {
+  display: flex;
+  flex-direction: column;
+  gap: 44px;
+}
+.sl-exam__line {
+  font-family: var(--font-fredoka), system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 84px;
+  line-height: 1.08;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+.sl-exam__line--2 {
+  color: var(--sky-300);
+}
+
+/* keyframes */
+@keyframes slFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes slFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes slRise {
+  from { opacity: 0; transform: translateY(22px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes slCross {
+  from { transform: translateX(-1200px); }
+  to { transform: translateX(2000px); }
+}
