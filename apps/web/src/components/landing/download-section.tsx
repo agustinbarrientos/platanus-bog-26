@@ -41,7 +41,7 @@ export function DownloadSection() {
           <a
             className="mo-store"
             href="/downloads/moirai.apk"
-        download
+            download
             target="_blank"
             rel="noopener noreferrer"
           >
