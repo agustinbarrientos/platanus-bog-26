@@ -10,7 +10,7 @@ export const COPY = {
   examen: {
     line1: "Tu examen de sangre ya tiene las señales",
     line2: "Nadie te las traduce",
-    header: "Laboratorio clínico · Resultados",
+    header: "Laboratorio clínico",
     /** A real report's order; `signal` marks the PhenoAge inputs. The six
         measured values are the app's demo case (demo_data.dart). */
     rows: [
@@ -29,7 +29,7 @@ export const COPY = {
   solucion: {
     title: "Lee tu examen y simula diez mil futuros tuyos",
     chips: ["tu edad biológica en 10 años", "la decisión que más años te ahorra"],
-    counterLabel: "de 10.000 futuros",
+    counterLabel: "futuros simulados",
   },
   impacto: {
     /** `delta` arrives signed and formatted: `+1,9`. */

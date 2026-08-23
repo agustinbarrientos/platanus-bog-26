@@ -168,8 +168,8 @@
 }
 .sl-chart {
   position: absolute;
-  left: 240px;
-  right: 240px;
+  left: 264px;
+  right: 264px;
   bottom: 30px;
 }
 .sl-chart__layer {
@@ -197,7 +197,7 @@
 }
 .sl-counter__label {
   font-weight: 700;
-  font-size: 36px;
+  font-size: 40px;
   color: var(--sl-muted);
 }
 .sl-counter__bar {
@@ -267,7 +267,7 @@
   position: absolute;
   inset: 0;
   display: grid;
-  grid-template-columns: 880px 1fr;
+  grid-template-columns: 780px 1fr;
   column-gap: 90px;
   align-items: center;
   padding: 0 120px;
@@ -276,6 +276,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  line-height: 1.15;
   padding: 32px 40px 28px;
   border-radius: 28px;
   background: rgba(255, 255, 255, 0.035);
@@ -287,7 +288,7 @@
   padding-bottom: 16px;
   border-bottom: 1.5px solid rgba(255, 255, 255, 0.08);
   font-weight: 700;
-  font-size: 34px;
+  font-size: 40px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--n-400);
@@ -328,13 +329,13 @@
 }
 .sl-exam__label {
   font-weight: 700;
-  font-size: 36px;
+  font-size: 44px;
   color: var(--n-300);
 }
 .sl-exam__val {
   font-family: var(--font-fredoka), system-ui, sans-serif;
   font-weight: 600;
-  font-size: 42px;
+  font-size: 52px;
   color: var(--n-400);
   transition:
     color 0.35s ease,
@@ -348,7 +349,7 @@
   margin-left: 12px;
   font-family: var(--font-nunito), system-ui, sans-serif;
   font-weight: 700;
-  font-size: 36px;
+  font-size: 40px;
   color: var(--n-400);
 }
 .sl-exam__text {

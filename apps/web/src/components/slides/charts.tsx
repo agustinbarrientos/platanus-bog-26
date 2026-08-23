@@ -55,13 +55,14 @@ export interface ChartProps {
 
 const F = "var(--font-fredoka), system-ui, sans-serif";
 
-/** Labels are 2.2× the landing's desktop size, the scale its phone layout uses: they have to read from the back of a room. */
-const TS = 2.2;
-const TOP = 48;
+/** Labels are 2.8× the landing's desktop size: nothing on this stage may be
+    smaller than a chip, and a chip is 40 px. */
+const TS = 2.8;
+const TOP = 44;
 const BOTTOM = TOP + 360;
 const AXIS_Y = BOTTOM + 1;
 const TICK_Y = BOTTOM + 14 + 8 * TS;
-const BOX = `0 0 1040 ${(TICK_Y + 8).toFixed(0)}`;
+const BOX = `0 0 1040 ${(TICK_Y + 14).toFixed(0)}`;
 const PLOT = `translate(12,${TOP})`;
 const GRID = [40, 120, 200, 280];
 const XTICKS: [number, string][] = [
@@ -212,7 +213,7 @@ export function HistogramChart({ lo, palette: c }: ChartProps) {
         ))}
         <text
           x={B.x50}
-          y={-8}
+          y={-4}
           fill={c.median}
           textAnchor="middle"
           style={{ fontFamily: F, fontWeight: 600, fontSize: 15 * TS }}
