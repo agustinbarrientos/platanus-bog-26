@@ -28,7 +28,8 @@ export function AndroidBar() {
         </span>
       </div>
       <a
-        href="https://play.google.com/store"
+        href="/downloads/moirai.apk"
+        download
         target="_blank"
         rel="noopener noreferrer"
         style={{
