@@ -141,6 +141,16 @@ def _sigma(nombre: str, imputados: set[str]) -> float:
     return sd * SIGMA_IMPUTADO_FACTOR if nombre in imputados else sd
 
 
+class MontecarloRun(NamedTuple):
+    resultados: list[ScenarioResult]
+    imputados: list[str]
+    #: What was actually simulated, after the MAX_TRAYECTORIAS/MAX_ANIOS
+    #: clamp — the router echoes these back rather than reapplying the same
+    #: clamp itself, so the two can't drift apart if either constant changes.
+    n_trayectorias: int
+    anios: int
+
+
 def _simulate_scenario(
     valores_iniciales: dict[str, float],
     edad_inicial: float,
@@ -212,7 +222,7 @@ def run(
     n_trayectorias: int = DEFAULT_TRAYECTORIAS,
     anios: int = DEFAULT_ANIOS,
     seed: int | None = None,
-) -> tuple[list[ScenarioResult], list[str]]:
+) -> MontecarloRun:
     """Run every scenario in `escenarios` from the same starting point, so
     they are directly comparable. Returns the per-scenario distributions plus
     the list of biomarkers that had to be imputed to get a starting point —
@@ -227,4 +237,4 @@ def run(
         _simulate_scenario(valores_iniciales, edad, key, n, a, rng, set(imputados))
         for key in escenarios
     ]
-    return resultados, imputados
+    return MontecarloRun(resultados=resultados, imputados=imputados, n_trayectorias=n, anios=a)

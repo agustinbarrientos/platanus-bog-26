@@ -10,11 +10,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict, model_validator
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import CurrentUserDep
 from app.db import get_db
+from app.db import get_or_create as _get_or_create_row
 from app.health_metrics.biomarkers import BIOMARKER_SPECS, BiomarkerName
 from app.models import HealthContext
 
@@ -122,8 +122,17 @@ class HealthContextPatch(BaseModel):
     #: Not derived from field coverage — the app sets this explicitly when
     #: its own onboarding flow finishes, including steps this schema never
     #: sees (photo, genetic test). Omit to leave alone, like every other
-    #: field here; there's no reason to ever send `null` for this one.
+    #: field here; there's no reason to ever send `null` for this one — and
+    #: unlike every other field, the DB column is NOT NULL, so a literal
+    #: `null` here is rejected explicitly below instead of reaching the
+    #: database as an IntegrityError.
     onboarding_completo: bool | None = None
+
+    @model_validator(mode="after")
+    def _onboarding_completo_no_admite_null(self) -> "HealthContextPatch":
+        if "onboarding_completo" in self.model_fields_set and self.onboarding_completo is None:
+            raise ValueError("onboarding_completo no acepta null — omite el campo para no tocarlo")
+        return self
 
 
 class HealthContextOut(BaseModel):
@@ -159,15 +168,17 @@ async def get_or_create_health_context(session: AsyncSession, user_id) -> Health
     lazy-create-on-read safety net `profiles` uses. Public because
     `lab_upload.py` needs the same fetch-or-create before it merges in
     extracted biomarkers.
+
+    Locks the row (`with_for_update`) because both callers here do a real
+    read-modify-write on a JSONB column — merge/append in Python, then write
+    the whole column back — not a plain field assignment. Without the lock,
+    a PATCH and a biomarker-extraction request landing close together for
+    the same user can each read the same starting array and each write back
+    their own full copy; whichever commits last silently erases the other's.
+    The lock serializes them instead: the second request waits for the
+    first's transaction to finish, then reads what the first actually wrote.
     """
-    await session.execute(
-        insert(HealthContext)
-        .values(user_id=user_id)
-        .on_conflict_do_nothing(index_elements=["user_id"])
-    )
-    row = await session.get(HealthContext, user_id)
-    assert row is not None
-    return row
+    return await _get_or_create_row(session, HealthContext, user_id, with_for_update=True)
 
 
 @router.get("", summary="The signed-in user's health context")

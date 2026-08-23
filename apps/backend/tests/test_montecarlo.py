@@ -45,7 +45,12 @@ EDAD = 34.0
 
 
 def _correr(perfil, escenarios=("ninguna",), n=4000, anios=10, seed=11):
-    return montecarlo.run(perfil, EDAD, "F", list(escenarios), n, anios, seed=seed)
+    """(resultados, imputados) — `montecarlo.run()` itself returns a
+    `MontecarloRun` NamedTuple (it also carries the actually-used
+    n_trayectorias/anios, so the router doesn't have to re-clamp them), but
+    every test in this file only ever wanted these two."""
+    corrida = montecarlo.run(perfil, EDAD, "F", list(escenarios), n, anios, seed=seed)
+    return corrida.resultados, corrida.imputados
 
 
 def _ancho(resultado, año):

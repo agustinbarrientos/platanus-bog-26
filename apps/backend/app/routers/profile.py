@@ -8,11 +8,10 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import CurrentUser, CurrentUserDep
-from app.db import get_db
+from app.db import get_db, get_or_create
 from app.models import Profile
 
 #: Two ways in to the same three handlers.
@@ -169,21 +168,6 @@ def _progress(profile: Profile) -> tuple[list[str], list[str]]:
     return answered, remaining
 
 
-async def _get_or_create(session: AsyncSession, user_id: uuid.UUID) -> Profile:
-    """The row is created at signup; this is the safety net for accounts that
-    predate that, and for anything that creates a user by another route.
-
-    Done as an upsert rather than select-then-insert so two parallel requests
-    from a freshly loaded page cannot race into a duplicate-key error.
-    """
-    await session.execute(
-        insert(Profile).values(user_id=user_id).on_conflict_do_nothing(index_elements=["user_id"])
-    )
-    profile = await session.get(Profile, user_id)
-    assert profile is not None
-    return profile
-
-
 async def biological_inputs(
     session: AsyncSession, user_id: uuid.UUID
 ) -> tuple[float | None, str | None]:
@@ -210,11 +194,11 @@ def _me(user_email: str, profile: Profile) -> MeOut:
 
 
 async def _read(user: CurrentUser, session: AsyncSession) -> MeOut:
-    return _me(user.email, await _get_or_create(session, user.id))
+    return _me(user.email, await get_or_create(session, Profile, user.id))
 
 
 async def _update(patch: ProfilePatch, user: CurrentUser, session: AsyncSession) -> MeOut:
-    profile = await _get_or_create(session, user.id)
+    profile = await get_or_create(session, Profile, user.id)
     # exclude_unset is what separates "not sent" from "sent as null", so a user
     # can genuinely clear one field without wiping every other one.
     for field, value in patch.model_dump(exclude_unset=True).items():

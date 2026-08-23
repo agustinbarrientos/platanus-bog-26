@@ -22,8 +22,10 @@ already exists` errors under concurrency.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from typing import TypeVar
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.pool import NullPool
@@ -36,6 +38,37 @@ _LIBPQ_ONLY_PARAMS = {"sslmode", "channel_binding", "target_session_attrs"}
 
 class Base(DeclarativeBase):
     pass
+
+
+_Row = TypeVar("_Row", bound=Base)
+
+
+async def get_or_create(
+    session: AsyncSession, model: type[_Row], user_id, *, with_for_update: bool = False
+) -> _Row:
+    """Upsert-then-get, keyed by `user_id` as the primary key — the one
+    lazy-row-per-user pattern `profiles` and `health_context` both need,
+    written once instead of duplicated per router. Done as an upsert rather
+    than select-then-insert so two parallel requests from a freshly loaded
+    page cannot race into a duplicate-key error.
+
+    `with_for_update` additionally locks the row until the caller's
+    transaction ends. Needed by any read-modify-write that merges a JSONB
+    column in Python (read the array, build a new full array, write it back)
+    — without the lock, two concurrent writers both read the same starting
+    array and each write back their own full copy; whichever commits last
+    silently overwrites the other's, dropping data neither request was ever
+    told about. A plain column update (no read-your-own-write merge step)
+    doesn't need it: SQLAlchemy's unit of work only ever issues an UPDATE for
+    the columns actually changed in that transaction, so two requests
+    touching different columns already can't clobber each other.
+    """
+    await session.execute(
+        insert(model).values(user_id=user_id).on_conflict_do_nothing(index_elements=["user_id"])
+    )
+    row = await session.get(model, user_id, with_for_update=with_for_update)
+    assert row is not None
+    return row
 
 
 def normalize_database_url(url: str) -> str:

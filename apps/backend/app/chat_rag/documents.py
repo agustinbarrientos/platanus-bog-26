@@ -190,7 +190,6 @@ def user_chunks(
 
     # biomarcadores: uno por nombre del vocabulario, medido o no
     guardados = {b["nombre"]: b for b in (context.get("biomarcadores") or []) if "nombre" in b}
-    medidos_phenoage = [n for n in PHENOAGE_BIOMARCADORES_ORDEN if n in guardados]
     for nombre, spec in BIOMARKER_SPECS.items():
         en_pheno = nombre in PHENOAGE_BIOMARKERS
         b = guardados.get(nombre)
@@ -239,11 +238,13 @@ def user_chunks(
     # PhenoAge fresco
     if pheno is not None:
         inferidos = [NOMBRE_BIOMARCADOR[n] for n in pheno.campos_inferidos]
-        medidos = [NOMBRE_BIOMARCADOR[n] for n in PHENOAGE_BIOMARKERS if n not in pheno.campos_inferidos]
+        medidos = [
+            NOMBRE_BIOMARCADOR[n] for n in PHENOAGE_BIOMARCADORES_ORDEN if n not in pheno.campos_inferidos
+        ]
         valores = ", ".join(
             f"{n} {fmt_num(pheno.valores_usados[n], 2)} {BIOMARKER_SPECS[n].unidad}"
             + (" (imputado)" if n in pheno.campos_inferidos else "")
-            for n in PHENOAGE_BIOMARKERS
+            for n in PHENOAGE_BIOMARCADORES_ORDEN
         )
         texto = (
             f"PhenoAge calculado ahora mismo con los datos guardados: edad cronológica "
@@ -268,7 +269,7 @@ def user_chunks(
     # faltantes / notas
     faltantes = context.get("datos_faltantes") or []
     notas = context.get("notas_incertidumbre")
-    no_medidos = [NOMBRE_BIOMARCADOR[n] for n in PHENOAGE_BIOMARKERS if n not in guardados]
+    no_medidos = [NOMBRE_BIOMARCADOR[n] for n in PHENOAGE_BIOMARCADORES_ORDEN if n not in guardados]
     partes = []
     if no_medidos:
         partes.append(

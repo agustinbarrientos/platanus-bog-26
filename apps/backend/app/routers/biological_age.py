@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -178,14 +179,18 @@ async def run_montecarlo(
             detail=f"escenario(s) desconocido(s): {unknown}. válidos: {list(SCENARIOS)}",
         )
 
-    resultados, imputados = montecarlo.run(
-        biomarcadores, edad, sexo, escenarios, body.n_trayectorias, body.anios
+    # montecarlo.run() is synchronous, CPU-bound numpy work — up to 20,000
+    # trajectories x 7 scenarios x 30 years. Run it off the event loop, or
+    # this stalls every other request this process is handling, including
+    # /health, for however long the simulation takes.
+    run_result = await run_in_threadpool(
+        montecarlo.run, biomarcadores, edad, sexo, escenarios, body.n_trayectorias, body.anios
     )
     return MontecarloOut(
         edad_cronologica=edad,
-        horizonte_anios=min(body.anios, montecarlo.MAX_ANIOS),
-        trayectorias_por_escenario=min(body.n_trayectorias, montecarlo.MAX_TRAYECTORIAS),
-        campos_inferidos=imputados,
+        horizonte_anios=run_result.anios,
+        trayectorias_por_escenario=run_result.n_trayectorias,
+        campos_inferidos=run_result.imputados,
         escenarios=[
             EscenarioOut(
                 escenario=r.escenario,
@@ -200,6 +205,6 @@ async def run_montecarlo(
                     p90=[round(v, 2) for v in r.curva_p90],
                 ),
             )
-            for r in resultados
+            for r in run_result.resultados
         ],
     )

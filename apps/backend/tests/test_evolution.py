@@ -267,9 +267,9 @@ def test_capa_2_y_capa_3_aplican_la_misma_regla(monkeypatch):
     monkeypatch.setattr(interventions, "DYNAMICS", sin_ruido)
     monkeypatch.setattr(montecarlo, "DYNAMICS", sin_ruido)
 
-    resultados, _ = montecarlo.run(
+    resultados = montecarlo.run(
         ESTADO_SPEC_9, EDAD_SPEC_9, "F", ["combinada"], n_trayectorias=100, anios=10, seed=0
-    )
+    ).resultados
     determinista = trayectoria_deterministica(
         ESTADO_SPEC_9, ["combinada"], EDAD_SPEC_9, 10
     )[-1]
@@ -292,9 +292,9 @@ def test_montecarlo_tolera_un_estado_inicial_de_enteros():
         "fosfatasa_alcalina": 70, "linfocitos_pct": 30, "vcm": 90,
         "rdw": 13, "leucocitos": 6,
     }
-    resultados, _ = montecarlo.run(
+    resultados = montecarlo.run(
         todos_enteros, 40, "F", ["ninguna", "combinada"], n_trayectorias=200, anios=10, seed=1
-    )
+    ).resultados
     base, combinada = resultados
     assert base.edad_biologica_mediana > combinada.edad_biologica_mediana
 
