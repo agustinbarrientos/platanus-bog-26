@@ -66,7 +66,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   bool _prefillHecho = false;
 
   // Paso a/b: viven aquí porque van al backend y se validan al avanzar.
-  final _nombre = TextEditingController();
   final _estatura = TextEditingController();
   final _peso = TextEditingController();
   DateTime? _nacimiento;
@@ -93,7 +92,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   @override
   void dispose() {
     _page.dispose();
-    _nombre.dispose();
     _estatura.dispose();
     _peso.dispose();
     super.dispose();
@@ -115,14 +113,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     _prefillHecho = true;
     final p = me.profile;
     setState(() {
-      if (_nombre.text.isEmpty && (p.fullName ?? '').isNotEmpty) _nombre.text = p.fullName!;
       _nacimiento ??= p.dateOfBirth;
       _sexo ??= p.sexAtBirth;
       if (_estatura.text.isEmpty && p.heightCm != null) _estatura.text = Fmt.entero(p.heightCm!);
       if (_peso.text.isEmpty && p.weightKg != null) _peso.text = Fmt.corto(p.weightKg!);
       _sangre ??= p.bloodType;
     });
-    if (p.fullName != null) _confirmado['full_name'] = p.fullName;
     if (p.dateOfBirth != null) _confirmado['date_of_birth'] = _iso(p.dateOfBirth!);
     if (p.sexAtBirth != null) _confirmado['sex_at_birth'] = p.sexAtBirth!.api;
     if (p.heightCm != null) _confirmado['height_cm'] = p.heightCm;
@@ -189,7 +185,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   // ── Validación local de a/b ────────────────────────────────────────────
   Set<String> _camposDe(_Paso p) => switch (p) {
-        _Paso.identidad => const {'full_name', 'date_of_birth', 'sex_at_birth'},
+        _Paso.identidad => const {'date_of_birth', 'sex_at_birth'},
         _Paso.cuerpo => const {'height_cm', 'weight_kg', 'blood_type'},
         _ => const {},
       };
@@ -198,11 +194,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     final err = <String, String>{};
     if (_nacimiento == null) err['date_of_birth'] = 'Necesito tu fecha de nacimiento para calcular tu edad.';
     if (_sexo == null) err['sex_at_birth'] = 'Elige una opción; me sirve para las curvas de referencia.';
-    if (_nombre.text.trim().length > 120) err['full_name'] = 'Con un nombre más corto me basta.';
     setState(() => _errores = err);
     if (err.isNotEmpty) return false;
     _encolar({
-      if (_nombre.text.trim().isNotEmpty) 'full_name': _nombre.text.trim(),
       'date_of_birth': _iso(_nacimiento!),
       'sex_at_birth': _sexo!.api,
     });
@@ -435,7 +429,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   List<Widget> _cuerpo(_Paso p, Me? me) => switch (p) {
         _Paso.identidad => [
             PasoIdentidad(
-              nombre: _nombre,
               nacimiento: _nacimiento,
               sexo: _sexo,
               errores: _errores,
@@ -447,7 +440,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 _sexo = s;
                 _errores = {..._errores}..remove('sex_at_birth');
               }),
-              onEditado: _limpiarError,
             ),
           ],
         _Paso.cuerpo => [
@@ -477,7 +469,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         _Paso.resumen => [
             PasoResumen(
               basico: (
-                nombre: _nombre.text.trim().isEmpty ? me?.profile.fullName : _nombre.text.trim(),
+                nombre: me?.profile.fullName,
                 edad: Profile(dateOfBirth: _nacimiento).edad ?? me?.profile.edad,
                 sexo: (_sexo ?? me?.profile.sexAtBirth)?.label,
                 estatura: _num(_estatura.text) ?? me?.profile.heightCm,
