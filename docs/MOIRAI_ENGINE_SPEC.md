@@ -30,34 +30,16 @@ Tomar los biomarcadores y hábitos de una persona, medir su edad biológica hoy,
 
 ## 2. ARQUITECTURA DE TRES CAPAS (el modelo mental)
 
-```
-INPUT (biomarcadores + hábitos)
-        │
-        ▼
-┌─────────────────────────────────────────────┐
-│ CAPA 1 — MEDIDOR (PhenoAge)                  │
-│ estado actual → edad biológica HOY           │
-│ Fórmula con pesos publicados. Determinista.  │
-│ NO predice — mide el presente.               │
-└─────────────────┬───────────────────────────┘
-                  ▼
-┌─────────────────────────────────────────────┐
-│ CAPA 2 — MOTOR DE EVOLUCIÓN (dinámica)       │
-│ estado(t) + hábitos → estado(t+1)            │
-│ Regla de deriva anual por biomarcador.       │
-│ ESTO es lo que proyecta al futuro.           │
-└─────────────────┬───────────────────────────┘
-                  ▼
-┌─────────────────────────────────────────────┐
-│ CAPA 3 — MONTE CARLO (incertidumbre)         │
-│ corre la Capa 2 N=10000 veces con ruido      │
-│ → abanico de futuros: mediana, P10, P90      │
-│ ESTO da honestidad + el wow visual.          │
-└─────────────────┬───────────────────────────┘
-                  ▼
-        SHAP → explica qué variable domina
-                  ▼
-OUTPUT protagonista (trayectoria + decisión + porqué)
+```mermaid
+flowchart TD
+    entrada["INPUT<br/>biomarcadores + hábitos"]
+    capa1["CAPA 1 - MEDIDOR (PhenoAge)<br/>estado actual -> edad biológica HOY<br/>Fórmula con pesos publicados. Determinista.<br/>NO predice: mide el presente."]
+    capa2["CAPA 2 - MOTOR DE EVOLUCIÓN (dinámica)<br/>estado(t) + hábitos -> estado(t+1)<br/>Regla de deriva anual por biomarcador.<br/>ESTO es lo que proyecta al futuro."]
+    capa3["CAPA 3 - MONTE CARLO (incertidumbre)<br/>corre la Capa 2 N=10000 veces con ruido<br/>abanico de futuros: mediana, P10, P90<br/>ESTO da honestidad + el wow visual."]
+    shap["SHAP<br/>explica qué variable domina"]
+    salida["OUTPUT protagonista<br/>trayectoria + decisión + porqué"]
+
+    entrada --> capa1 --> capa2 --> capa3 --> shap --> salida
 ```
 
 **La confusión que esto resuelve:** una fórmula de pesos (PhenoAge) NO predice el futuro - mide el presente. La predicción vive en la Capa 2 (dinámica temporal). Monte Carlo (Capa 3) solo le añade incertidumbre. Son tres piezas apiladas, no una.

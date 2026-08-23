@@ -79,32 +79,21 @@ Cada agente recibe solo los chunks relevantes a su rol -> respuestas ancladas y 
 
 ## 4. ARQUITECTURA TÉCNICA DEL RAG
 
-```
-PDFs (corpus sección 3)
-   │
-   ▼
-INGESTA: extraer texto (pdfplumber) + metadata (autor, año, journal, grupo A-E)
-   │
-   ▼
-CHUNKING: ~500-800 tokens por chunk, con solapamiento. Preservar:
-   - título del paper, sección, y un "claim summary" por chunk
-   - tag de grupo (A=clocks, B=validación, C=intervención, D=poblaciones, E=sistemas)
-   │
-   ▼
-EMBEDDINGS: modelo de embeddings científico (ej. multilingüe o especializado biomédico)
-   │
-   ▼
-VECTOR STORE: (Supabase pgvector, o Chroma/FAISS local para el hack)
-   │
-   ▼
-RECUPERACIÓN POR AGENTE:
-   - Láquesis → filtra grupos A, B, D, E
-   - Átropos  → filtra grupos C, B
-   - top-k chunks + re-ranking por relevancia
-   │
-   ▼
-GENERACIÓN: el agente (Claude API) recibe query + chunks recuperados
-   → responde CITANDO el paper (autor, año). Nunca afirma sin fuente.
+```mermaid
+flowchart TD
+    pdfs["PDFs (corpus sección 3)"]
+    ingesta["INGESTA<br/>extraer texto (pdfplumber) + metadata<br/>autor, año, journal, grupo A-E"]
+    chunking["CHUNKING<br/>~500-800 tokens por chunk, con solapamiento<br/>preserva título del paper, sección y un claim summary por chunk<br/>tag de grupo: A=clocks, B=validación, C=intervención, D=poblaciones, E=sistemas"]
+    embeddings["EMBEDDINGS<br/>modelo de embeddings científico<br/>multilingüe o especializado biomédico"]
+    store["VECTOR STORE<br/>Supabase pgvector, o Chroma/FAISS local para el hack"]
+    recuperacion["RECUPERACIÓN POR AGENTE<br/>top-k chunks + re-ranking por relevancia"]
+    laquesis["Láquesis<br/>filtra grupos A, B, D, E"]
+    atropos["Átropos<br/>filtra grupos C, B"]
+    generacion["GENERACIÓN<br/>el agente (Claude API) recibe query + chunks recuperados<br/>responde CITANDO el paper (autor, año)<br/>Nunca afirma sin fuente."]
+
+    pdfs --> ingesta --> chunking --> embeddings --> store --> recuperacion
+    recuperacion --> laquesis --> generacion
+    recuperacion --> atropos --> generacion
 ```
 
 ### Recomendación de stack para 36h
