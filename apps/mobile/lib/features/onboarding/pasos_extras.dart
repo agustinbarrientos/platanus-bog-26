@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,7 +12,7 @@ import '../../data/models/onboarding.dart';
 import '../../widgets/big_number.dart';
 import '../../widgets/mo.dart';
 
-/// Pasos j–m: wearables, foto, prueba genética y resumen.
+/// Pasos j–l: wearables, foto y resumen.
 
 // ── j. Wearables ─────────────────────────────────────────────────────────
 enum _EstadoW { inicial, leyendo, listo, sinAcceso }
@@ -345,100 +344,7 @@ class _PasoFotoState extends ConsumerState<PasoFoto> {
   }
 }
 
-// ── l. Prueba genética ───────────────────────────────────────────────────
-class PasoGenetica extends ConsumerStatefulWidget {
-  const PasoGenetica({super.key});
-
-  @override
-  ConsumerState<PasoGenetica> createState() => _PasoGeneticaState();
-}
-
-class _PasoGeneticaState extends ConsumerState<PasoGenetica> {
-  String? _aviso;
-  bool _ocupado = false;
-
-  Future<void> _elegir() async {
-    setState(() {
-      _ocupado = true;
-      _aviso = null;
-    });
-    try {
-      final archivo = await FilePicker.pickFile(
-        dialogTitle: 'Elige tu prueba genética (PDF)',
-        type: FileType.custom,
-        allowedExtensions: const ['pdf'],
-      );
-      final p = archivo?.path;
-      if (p != null) {
-        await ref.read(onboardingProvider.notifier).update((d) => d.copyWith(geneticaPath: p));
-      }
-    } catch (_) {
-      if (mounted) setState(() => _aviso = 'No pude abrir tus archivos. Puedes seguir y subirla después desde tu perfil.');
-    } finally {
-      if (mounted) setState(() => _ocupado = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = Theme.of(context).textTheme;
-    final ob = ref.watch(onboardingProvider);
-    final path = ob.geneticaPath;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        AnimatedSwitcher(
-          duration: Motion.slow,
-          switchInCurve: Motion.out,
-          child: path == null
-              ? OutlinedButton.icon(
-                  key: const ValueKey('elegir'),
-                  onPressed: _ocupado ? null : _elegir,
-                  icon: const Icon(Icons.upload_file_outlined),
-                  label: const Text('Elegir el PDF'),
-                )
-              : MoCard(
-                  key: ValueKey(path),
-                  padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
-                  child: Row(
-                    children: [
-                      const MoIconTile(Icons.picture_as_pdf_outlined),
-                      const SizedBox(width: Sp.x4),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(path.split(Platform.pathSeparator).last, style: t.titleMedium, maxLines: 1, overflow: TextOverflow.ellipsis),
-                            const SizedBox(height: 2),
-                            Text('Guardada en este teléfono', style: t.bodySmall),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'Quitar',
-                        onPressed: () => ref.read(onboardingProvider.notifier).update((d) => d.copyWith(clearGenetica: true)),
-                        icon: const Icon(Icons.close_rounded),
-                      ),
-                    ],
-                  ),
-                ),
-        ).stagger(0),
-        if (_aviso != null) ...[
-          const SizedBox(height: Sp.x4),
-          MoNotice(tone: MoTone.watch, text: _aviso!).animate().fadeIn(duration: Motion.base),
-        ],
-        const SizedBox(height: Sp.x5),
-        const MoNotice(
-          tone: MoTone.brand,
-          icon: Icons.schedule_rounded,
-          text: 'Por ahora solo la guardo. El análisis viene después y te lo explico paso a paso.',
-        ).stagger(1),
-      ],
-    );
-  }
-}
-
-// ── m. Resumen ───────────────────────────────────────────────────────────
+// ── l. Resumen ───────────────────────────────────────────────────────────
 /// Lo básico que vive en `/me` (lo pasa la pantalla, que tiene los valores
 /// más recientes aunque el backend siga despertando).
 typedef ResumenBasico = ({String? nombre, int? edad, String? sexo, double? estatura, double? peso, String? sangre});
@@ -513,7 +419,6 @@ class PasoResumen extends ConsumerWidget {
         ('Suplementos', ob.suplementos.isEmpty ? null : ob.suplementos.map((s) => Catalogos.suplementosComunes[s.nombre] ?? s.nombre).join(', ')),
         ('Reloj o pulsera', ob.wearableConectado ? 'Conectado' : 'Sin conectar'),
         ('Foto', ob.fotoPath == null ? 'Sin foto' : 'Guardada'),
-        ('Prueba genética', ob.geneticaPath == null ? 'Sin archivo' : 'Guardada'),
       ]),
     ];
 

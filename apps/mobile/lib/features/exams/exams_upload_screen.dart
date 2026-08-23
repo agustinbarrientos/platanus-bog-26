@@ -41,46 +41,68 @@ class _ExamsUploadScreenState extends ConsumerState<ExamsUploadScreen> {
     try {
       final x = await ImagePicker().pickImage(source: ImageSource.camera, imageQuality: 85, maxWidth: 2400);
       if (x == null) return;
-      await _leer(x.path);
+      await _leerVarios([x.path]);
     } catch (_) {
       _mostrarAviso('No pude abrir la cámara aquí. Prueba con un archivo o escribe los valores a mano.');
     }
   }
 
-  Future<void> _elegirArchivo() async {
+  Future<void> _elegirArchivos() async {
     try {
-      final f = await FilePicker.pickFile(type: FileType.custom, allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png']);
-      final path = f?.path;
-      if (path == null) {
-        if (f != null) _mostrarAviso('Ese archivo no está en tu teléfono. Prueba con otro o escribe los valores a mano.');
+      final archivos = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png']);
+      final rutas = archivos.map((f) => f.path).whereType<String>().toList();
+      if (rutas.isEmpty) {
+        if (archivos.isNotEmpty) _mostrarAviso('Esos archivos no están en tu teléfono. Prueba con otros o escribe los valores a mano.');
         return;
       }
-      await _leer(path);
+      await _leerVarios(rutas);
     } catch (_) {
-      _mostrarAviso('No pude abrir ese archivo. Prueba con otro o escribe los valores a mano.');
+      _mostrarAviso('No pude abrir esos archivos. Prueba con otros o escribe los valores a mano.');
     }
   }
 
-  Future<void> _leer(String path) async {
+  /// Lee uno o más documentos. El backend solo acepta un archivo por
+  /// solicitud, así que cada documento es su propia llamada — en serie, no en
+  /// paralelo, para no perder si el servidor está despertando. Cada llamada
+  /// guarda directamente en `health_context`, así que basta con quedarnos con
+  /// el `biomarcadores` de la última respuesta exitosa (ya trae todo lo
+  /// acumulado); las advertencias sí se juntan de todas.
+  Future<void> _leerVarios(List<String> rutas) async {
     setState(() {
       _estado = _Estado.leyendo;
       _aviso = null;
     });
-    try {
-      final r = await ref.read(examsRepositoryProvider).extraer(path);
-      if (!mounted) return;
-      if (r.leidos.isEmpty && r.advertencias.isEmpty) {
-        _mostrarAviso('No encontré valores que reconozca en ese documento. Puedes escribirlos a mano.', tone: MoTone.brand);
-        return;
+    final advertencias = <String>[];
+    var todos = const <Biomarcador>[];
+    String? fecha;
+    var exitosos = 0;
+    for (final ruta in rutas) {
+      try {
+        final r = await ref.read(examsRepositoryProvider).extraer(ruta);
+        advertencias.addAll(r.advertencias);
+        todos = r.biomarcadores;
+        fecha ??= r.fechaExamen;
+        exitosos++;
+      } catch (_) {
+        // Sigo con los demás documentos; si todos fallan, aviso abajo.
       }
-      final fecha = r.fechaExamen;
-      // `r.biomarcadores` es la lista completa que el backend guardó tras
-      // mezclar esta lectura con lo que ya tenía; `r.leidos` es lo de hoy.
-      final lectura = [for (final b in r.biomarcadores) (b.fecha == null && fecha != null) ? b.copyWith(fecha: fecha) : b];
-      _irAConfirmar(lectura, advertencias: r.advertencias);
-    } catch (_) {
-      if (mounted) _mostrarAviso(_fallo);
     }
+    if (!mounted) return;
+    if (exitosos == 0) {
+      _mostrarAviso(_fallo);
+      return;
+    }
+    if (todos.isEmpty && advertencias.isEmpty) {
+      _mostrarAviso(
+        rutas.length == 1
+            ? 'No encontré valores que reconozca en ese documento. Puedes escribirlos a mano.'
+            : 'No encontré valores que reconozca en esos documentos. Puedes escribirlos a mano.',
+        tone: MoTone.brand,
+      );
+      return;
+    }
+    final lectura = [for (final b in todos) (b.fecha == null && fecha != null) ? b.copyWith(fecha: fecha) : b];
+    _irAConfirmar(lectura, advertencias: advertencias);
   }
 
   Future<void> _ejemplo() async {
@@ -133,7 +155,7 @@ class _ExamsUploadScreenState extends ConsumerState<ExamsUploadScreen> {
         const MoScreenHeader(
           title: '¿Tienes exámenes recientes?',
           subtitle:
-              'Con una foto me basta, aunque esté torcida. Si no tienes, no importa: puedo seguir sin ellos y decirte después qué te conviene medir. También puedes escribir los valores a mano.',
+              'Cualquier examen de sangre u otro examen médico me sirve — puedes subir varios documentos a la vez. Si no tienes, no importa: puedo seguir sin ellos y decirte después qué te conviene medir. También puedes escribir los valores a mano.',
         ),
         const SizedBox(height: Sp.x6),
         Center(
@@ -191,9 +213,9 @@ class _ExamsUploadScreenState extends ConsumerState<ExamsUploadScreen> {
           ).animate().fadeIn(duration: Motion.slow).slideY(begin: -.05, end: 0, curve: Motion.out),
           const SizedBox(height: Sp.stackCard),
         ],
-        _Opcion(icon: Icons.photo_camera_rounded, label: 'Tomar una foto', sub: 'De tu último examen de sangre', onTap: _tomarFoto).stagger(0),
+        _Opcion(icon: Icons.photo_camera_rounded, label: 'Tomar una foto', sub: 'De un examen de sangre u otro examen médico', onTap: _tomarFoto).stagger(0),
         const SizedBox(height: Sp.x3 + 2),
-        _Opcion(icon: Icons.upload_file_rounded, label: 'Elegir un archivo', sub: 'PDF o imagen desde tu teléfono', onTap: _elegirArchivo).stagger(1),
+        _Opcion(icon: Icons.upload_file_rounded, label: 'Elegir archivos', sub: 'PDF o imagen — puedes elegir varios a la vez', onTap: _elegirArchivos).stagger(1),
         const SizedBox(height: Sp.x3 + 2),
         _Opcion(icon: Icons.edit_note_rounded, label: 'Escribir los valores a mano', sub: 'Los que tengas; los demás los infiero', tone: MoTone.sunken, onTap: _aMano).stagger(2),
       ],
