@@ -9,6 +9,8 @@ y te dice qué decisión le quita más años a tu cuerpo.
 
 **[Ver el sitio](https://moirai.uo.ar/)** &nbsp;|&nbsp; **[Pitch deck](https://moirai.uo.ar/slides)** &nbsp;|&nbsp; Track Simulations
 
+<a href="https://moirai.uo.ar/downloads/moirai.apk"><img src="./design/branding/icons/google-play.svg" alt="Disponible en Google Play" height="52" /></a>
+
 <p>Creado en 36 horas durante <a href="https://hack.platan.us/26-co"><img src="./design/branding/icons/platanus.svg" alt="Platanus Hack" height="11" style="max-height: 11px; vertical-align: baseline; display: inline;" /></a> en Bogotá</p>
 
 ¡Gracias [Platanus](http://platan.us/)!

@@ -20,17 +20,43 @@ const nunito = Nunito({
   style: ["normal", "italic"],
 });
 
+const TITLE = "Moirai · Cuánto puedes frenar el reloj de tu cuerpo";
+
+// The share card gets the shorter line: previews truncate, and this one lands
+// the whole idea before it gets cut.
+const PITCH =
+  "Simulo diez mil futuros tuyos, luego los repito cambiando una sola cosa. Esa diferencia es lo que ganas.";
+
+// Crawlers need absolute URLs, so the relative paths below resolve against this.
+const SITE = "https://moirai.uo.ar";
+
+const CARD = {
+  url: "/moirai/og.png",
+  width: 1200,
+  height: 630,
+  alt: "Moirai",
+};
+
 export const metadata: Metadata = {
-  title: "Moirai · Cuánto puedes frenar el reloj de tu cuerpo",
+  metadataBase: new URL(SITE),
+  title: TITLE,
   description:
     "Sube tu examen y contesta unas preguntas. Simulo diez mil futuros tuyos y te digo qué decisión le quita más años a tu cuerpo.",
   icons: { icon: "/moirai/moirai-icon.svg" },
   openGraph: {
-    title: "Moirai · Cuánto puedes frenar el reloj de tu cuerpo",
-    description:
-      "Simulo diez mil futuros tuyos, luego los repito cambiando una sola cosa. Esa diferencia es lo que ganas.",
+    title: TITLE,
+    description: PITCH,
+    url: "/",
+    siteName: "Moirai",
     locale: "es_CO",
     type: "website",
+    images: [CARD],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: TITLE,
+    description: PITCH,
+    images: [CARD],
   },
 };
 
